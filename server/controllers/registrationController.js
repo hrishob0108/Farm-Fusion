@@ -55,6 +55,13 @@ export const createRegistration = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Transaction ID is required' });
     }
 
+    // Backend phone number validation (must be exactly 10 digits)
+    const allPhones = [leader?.phone, ...members.map(m => m?.phone)].filter(Boolean);
+    const invalidPhone = allPhones.find(p => typeof p !== 'string' || p.replace(/\D/g, '').length !== 10);
+    if (invalidPhone) {
+      return res.status(400).json({ success: false, message: 'All phone numbers must be exactly 10 digits.' });
+    }
+
     // Auto-generate @klu.ac.in email from regNo
     if (leader && leader.regNo) {
       leader.email = `${leader.regNo.trim()}@klu.ac.in`;

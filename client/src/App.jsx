@@ -8,6 +8,7 @@ import { Toaster } from 'react-hot-toast';
 import { BackgroundEffects } from './components/common/BackgroundEffects';
 import { Navbar } from './components/common/Navbar';
 import { ScrollToTop } from './components/common/ScrollToTop';
+import { FloatingContact } from './components/common/FloatingContact';
 
 import { HeroHome } from './components/registration/HeroHome';
 import { RegistrationForm } from './components/registration/RegistrationForm';
@@ -33,6 +34,7 @@ const MainContent = () => {
         {step === 4 && <SuccessSection />}
       </main>
 
+      <FloatingContact />
       <ScrollToTop />
     </div>
   );

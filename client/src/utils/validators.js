@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const memberSchema = z.object({
   name: z.string().min(2, 'Name is required (at least 2 chars)'),
   regNo: z.string().min(2, 'Registration Number is required'),
-  phone: z.string().min(10, 'Valid 10-digit Phone Number is required'),
+  phone: z.string().length(10, 'Phone number must be exactly 10 digits').regex(/^\d{10}$/, 'Phone number must contain only numbers'),
   section: z.string().min(1, 'Section is required'),
   branch: z.string().min(1, 'Branch is required')
 });

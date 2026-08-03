@@ -1,9 +1,8 @@
 import React, { useEffect } from 'react';
 import { useEvent } from '../../context/EventContext';
-import { generateRegistrationReceipt } from '../../services/receiptGenerator';
 import confetti from 'canvas-confetti';
 import { motion } from 'framer-motion';
-import { CheckCircle2, Download, Home, MessageSquare, ExternalLink } from 'lucide-react';
+import { CheckCircle2, Home, MessageSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export const SuccessSection = () => {
@@ -19,16 +18,6 @@ export const SuccessSection = () => {
       });
     } catch (e) {}
   }, []);
-
-  const handleDownloadReceipt = async () => {
-    if (submittedRegistration) {
-      toast.loading('Generating Official Pass PDF with logos...', { id: 'pdfToast' });
-      await generateRegistrationReceipt(submittedRegistration);
-      toast.success('Downloaded Registration Receipt PDF!', { id: 'pdfToast' });
-    } else {
-      toast.error('No registration record found for download');
-    }
-  };
 
   const groupLink = eventData.whatsapp?.discussion || eventData.whatsapp?.group || '#';
   const communityLink = eventData.whatsapp?.group || '#';
@@ -100,21 +89,13 @@ export const SuccessSection = () => {
           </div>
         )}
 
-        {/* Action Buttons: PDF Pass Download & Return Home */}
+        {/* Action Buttons: Return Home / Register Another Team */}
         <div className="w-full flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
           <button
-            onClick={handleDownloadReceipt}
+            onClick={resetRegistrationForm}
             className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#0F3A24] hover:bg-[#0A2B1A] text-white font-extrabold text-xs shadow-md flex items-center justify-center gap-2 transition cursor-pointer"
           >
-            <Download className="w-4 h-4 text-[#D4A373]" />
-            <span>Download Registration Pass PDF</span>
-          </button>
-
-          <button
-            onClick={resetRegistrationForm}
-            className="w-full sm:w-auto px-6 py-3 rounded-xl bg-white border border-[#D9CEBE] text-[#0F3A24] font-extrabold text-xs hover:bg-[#FAF7F2] flex items-center justify-center gap-2 transition cursor-pointer"
-          >
-            <Home className="w-4 h-4 text-[#7A4F23]" />
+            <Home className="w-4 h-4 text-[#D4A373]" />
             <span>Register Another Team</span>
           </button>
         </div>

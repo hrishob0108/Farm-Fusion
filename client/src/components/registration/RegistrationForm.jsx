@@ -7,7 +7,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 
 export const RegistrationForm = () => {
-  const { eventData, formData, setFormData, setStep } = useEvent();
+  const { eventData, formData, setFormData, setStep, checkLiveRegistrationOpen } = useEvent();
 
   const registeredCount = eventData.registeredCount || 0;
   const maxTeams = eventData.maxTeams || 50;
@@ -100,7 +100,7 @@ export const RegistrationForm = () => {
     return () => clearTimeout(timer);
   }, [watchedTeamName]);
 
-  const onSubmit = (data) => {
+  const onSubmit = async (data) => {
     if (!isRegistrationOpen) {
       toast.error(isLimitReached ? 'Registrations are CLOSED because team limit has been reached.' : 'Registrations are currently closed by the administrator.');
       return;
@@ -153,6 +153,16 @@ export const RegistrationForm = () => {
 
     if (nameAvailability && !nameAvailability.isAvailable) {
       toast.error('Team Name is already taken. Please choose a different name.');
+      return;
+    }
+
+    const status = await checkLiveRegistrationOpen();
+    if (!status.isOpen) {
+      toast.error(
+        status.isLimit
+          ? 'Registrations are CLOSED because the maximum team limit has been reached.'
+          : 'Registrations are currently CLOSED by the event organizers.'
+      );
       return;
     }
 
@@ -450,11 +460,10 @@ export const RegistrationForm = () => {
 
             <button
               type="submit"
-              disabled={!isRegistrationOpen}
-              className={`w-full sm:w-auto px-6 py-3 rounded-xl font-extrabold text-sm shadow-md flex items-center justify-center gap-2 transition ${
+              className={`w-full sm:w-auto px-6 py-3 rounded-xl font-extrabold text-sm shadow-md flex items-center justify-center gap-2 transition cursor-pointer ${
                 isRegistrationOpen
-                  ? 'bg-[#0F3A24] hover:bg-[#0A2B1A] text-white cursor-pointer'
-                  : 'bg-slate-400 text-slate-100 cursor-not-allowed shadow-none border border-slate-300'
+                  ? 'bg-[#0F3A24] hover:bg-[#0A2B1A] text-white'
+                  : 'bg-rose-700 hover:bg-rose-800 text-white'
               }`}
             >
               <span>

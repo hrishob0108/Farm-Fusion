@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import { CreditCard, Copy, Check, FileCheck, Trash2, Loader2, ArrowLeft, ShieldCheck, Image as ImageIcon, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 
 export const PaymentSection = () => {
-  const { eventData, formData, setStep, setSubmittedRegistration } = useEvent();
+  const { eventData, formData, setStep, setSubmittedRegistration, checkLiveRegistrationOpen } = useEvent();
 
   const registeredCount = eventData.registeredCount || 0;
   const maxTeams = eventData.maxTeams || 50;
@@ -113,13 +113,23 @@ export const PaymentSection = () => {
   const handleFinalSubmit = async (e) => {
     e.preventDefault();
 
-    if (!isRegistrationOpen) {
-      toast.error(isLimitReached ? 'Registrations are CLOSED because team limit has been reached.' : 'Registrations are currently closed by the administrator.');
+    const status = await checkLiveRegistrationOpen();
+    if (!status.isOpen) {
+      toast.error(
+        status.isLimit
+          ? 'Registrations are CLOSED because the maximum team limit has been reached.'
+          : 'Registrations are currently CLOSED by the event organizers.'
+      );
       return;
     }
 
     if (!transactionId || transactionId.trim().length < 6) {
       toast.error('Please enter a valid Transaction ID (Min 6 characters)');
+      return;
+    }
+
+    if (transactionId.includes('@')) {
+      toast.error('Transaction ID / UTR number cannot contain @ symbol');
       return;
     }
 
@@ -258,7 +268,8 @@ export const PaymentSection = () => {
                   disabled={!isRegistrationOpen}
                   placeholder="e.g. 320918239012"
                   value={transactionId}
-                  onChange={(e) => setTransactionId(e.target.value)}
+                  onChange={(e) => setTransactionId(e.target.value.replace(/@/g, ''))}
+                  onInput={(e) => { e.target.value = e.target.value.replace(/@/g, ''); }}
                   className="w-full px-3.5 py-2.5 rounded-lg border border-[#D9CEBE] bg-[#FAF7F2]/50 text-[#0F3A24] text-sm font-mono font-bold uppercase focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0F3A24]/20 focus:border-[#0F3A24] disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                 />
 
@@ -268,6 +279,10 @@ export const PaymentSection = () => {
                   </div>
                 )}
               </div>
+
+              <p className="text-[11px] font-bold text-[#7A4F23] mt-1">
+                Note: Enter the Transaction ID or UTR number only. <span className="text-rose-600 font-black">Do not enter</span> a UPI ID.
+              </p>
 
               {/* Live Duplicate Transaction ID Indicator */}
               {txnAvailability && !checkingTxn && (
@@ -341,11 +356,11 @@ export const PaymentSection = () => {
 
               <button
                 type="submit"
-                disabled={!isRegistrationOpen || isSubmitting}
-                className={`px-6 py-2.5 rounded-xl font-extrabold text-sm shadow-md flex items-center justify-center gap-2 transition ${
+                disabled={isSubmitting}
+                className={`px-6 py-2.5 rounded-xl font-extrabold text-sm shadow-md flex items-center justify-center gap-2 transition cursor-pointer ${
                   isRegistrationOpen && !isSubmitting
-                    ? 'bg-[#0F3A24] hover:bg-[#0A2B1A] text-white cursor-pointer'
-                    : 'bg-slate-400 text-slate-100 cursor-not-allowed shadow-none border border-slate-300'
+                    ? 'bg-[#0F3A24] hover:bg-[#0A2B1A] text-white'
+                    : 'bg-rose-700 hover:bg-rose-800 text-white'
                 }`}
               >
                 {isSubmitting ? (

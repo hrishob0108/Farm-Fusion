@@ -91,6 +91,24 @@ export const EventProvider = ({ children }) => {
     };
   }, []);
 
+  // On-Demand Real-Time Registration Status Check from MongoDB
+  const checkLiveRegistrationOpen = async () => {
+    try {
+      const res = await axios.get('/api/event');
+      if (res.data) {
+        setEventData(res.data);
+        const isLimit = (res.data.registeredCount || 0) >= (res.data.maxTeams || 50);
+        const isOpen = res.data.registrationOpen !== false && !isLimit;
+        return { isOpen, isLimit, data: res.data };
+      }
+    } catch (error) {
+      console.warn('[EventContext] Live status check warning:', error.message);
+    }
+    const isLimit = (eventData.registeredCount || 0) >= (eventData.maxTeams || 50);
+    const isOpen = eventData.registrationOpen !== false && !isLimit;
+    return { isOpen, isLimit, data: eventData };
+  };
+
   const resetRegistrationForm = () => {
     localStorage.removeItem('farm_fusion_form_draft');
     setFormData({
@@ -110,6 +128,7 @@ export const EventProvider = ({ children }) => {
       eventData,
       setEventData,
       fetchEventDetails,
+      checkLiveRegistrationOpen,
       formData,
       setFormData,
       isAdminOpen,

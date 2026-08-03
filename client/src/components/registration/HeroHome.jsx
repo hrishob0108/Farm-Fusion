@@ -3,9 +3,10 @@ import { useEvent } from '../../context/EventContext';
 import { CountdownTimer } from '../countdown/CountdownTimer';
 import { motion } from 'framer-motion';
 import { ArrowRight, Clock } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export const HeroHome = () => {
-  const { eventData, setStep } = useEvent();
+  const { eventData, setStep, checkLiveRegistrationOpen } = useEvent();
 
   const registeredCount = eventData.registeredCount || 0;
   const maxTeams = eventData.maxTeams || 50;
@@ -14,6 +15,19 @@ export const HeroHome = () => {
   // Registration is open ONLY if explicitly open AND registered count is below max limit
   const isLimitReached = registeredCount >= maxTeams;
   const isOpen = eventData.registrationOpen !== false && !isLimitReached;
+
+  const handleRegisterClick = async () => {
+    const status = await checkLiveRegistrationOpen();
+    if (!status.isOpen) {
+      toast.error(
+        status.isLimit
+          ? 'Registrations are CLOSED because the maximum team limit has been reached.'
+          : 'Registrations are currently CLOSED by the event organizers.'
+      );
+      return;
+    }
+    setStep(2);
+  };
 
   return (
     <motion.div 
@@ -69,12 +83,11 @@ export const HeroHome = () => {
 
         {/* Register Button */}
         <button
-          onClick={() => setStep(2)}
-          disabled={!isOpen}
-          className={`px-8 py-3.5 text-base font-extrabold rounded-xl shadow-md flex items-center justify-center gap-2 mx-auto transition ${
+          onClick={handleRegisterClick}
+          className={`px-8 py-3.5 text-base font-extrabold rounded-xl shadow-md flex items-center justify-center gap-2 mx-auto transition cursor-pointer ${
             isOpen
-              ? 'bg-[#0F3A24] hover:bg-[#0A2B1A] text-white cursor-pointer'
-              : 'bg-slate-400 text-slate-100 cursor-not-allowed shadow-none border border-slate-300'
+              ? 'bg-[#0F3A24] hover:bg-[#0A2B1A] text-white'
+              : 'bg-rose-700 hover:bg-rose-800 text-white'
           }`}
         >
           <span>

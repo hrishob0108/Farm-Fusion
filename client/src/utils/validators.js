@@ -15,5 +15,7 @@ export const registrationFormSchema = z.object({
 });
 
 export const paymentSchema = z.object({
-  transactionId: z.string().min(6, 'Transaction ID must be at least 6 characters (e.g., UPI/Bank Ref No)'),
+  transactionId: z.string()
+    .min(6, 'Transaction ID must be at least 6 characters (e.g., UPI/Bank Ref No)')
+    .refine(val => !val.includes('@'), 'Transaction ID / UTR number cannot contain "@" symbol'),
 });

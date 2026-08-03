@@ -54,6 +54,9 @@ export const createRegistration = async (req, res, next) => {
     if (!transactionId || !transactionId.trim()) {
       return res.status(400).json({ success: false, message: 'Transaction ID is required' });
     }
+    if (transactionId.includes('@')) {
+      return res.status(400).json({ success: false, message: 'Transaction ID / UTR number cannot contain "@" symbol.' });
+    }
 
     // Backend phone number validation (must be exactly 10 digits)
     const allPhones = [leader?.phone, ...members.map(m => m?.phone)].filter(Boolean);

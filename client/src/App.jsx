@@ -52,7 +52,7 @@ export default function App() {
               <Route path="/" element={<MainContent />} />
               
               {/* Admin Portal Route: /hero */}
-              <Route path="/admin/farmfusion/hero/arearearearegundajarigalanthayindhe" element={<AdminPage />} />
+              <Route path="/admin/farmfusion/hero/19052006" element={<AdminPage />} />
               
               {/* Catch-all fallback */}
               <Route path="*" element={<MainContent />} />

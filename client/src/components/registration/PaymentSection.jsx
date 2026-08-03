@@ -28,7 +28,7 @@ export const PaymentSection = () => {
   const upiId = (payment.upiId && typeof payment.upiId === 'string' && !payment.upiId.includes('undefined')) ? payment.upiId : 'farmfusionai@okaxis';
   const amount = payment.amount || 499;
   const accountHolder = payment.accountHolder || 'FarmFusion Org';
-  const qrImage = payment.qrImage || '/uploads/default-qr.png';
+  const qrImage = payment.qrImage || 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=farmfusionai@okaxis';
 
   // Automatic Debounced Duplicate Check for Transaction ID
   useEffect(() => {

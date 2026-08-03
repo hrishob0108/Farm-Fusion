@@ -1,5 +1,6 @@
 import { Event } from '../models/Event.js';
 import { Registration } from '../models/Registration.js';
+import { uploadToCloudinary } from '../services/cloudinaryService.js';
 
 // GET /api/event - Fetches live event configuration strictly from MongoDB
 export const getEventDetails = async (req, res, next) => {
@@ -19,7 +20,7 @@ export const getEventDetails = async (req, res, next) => {
           upiId: 'farmfusionai@okaxis',
           amount: 499,
           accountHolder: 'FarmFusion Org',
-          qrImage: '/uploads/default-qr.png'
+          qrImage: 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=farmfusionai@okaxis'
         },
         whatsapp: {
           group: '',
@@ -33,11 +34,16 @@ export const getEventDetails = async (req, res, next) => {
     const maxTeams = event.maxTeams || 50;
     const progressPercent = Math.min(Math.round((registeredCount / maxTeams) * 100), 100);
 
+    let currentQrImage = event.payment?.qrImage;
+    if (!currentQrImage || currentQrImage.startsWith('/uploads')) {
+      currentQrImage = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=farmfusionai@okaxis';
+    }
+
     const paymentObj = {
       upiId: event.payment?.upiId || 'farmfusionai@okaxis',
       amount: event.payment?.amount !== undefined ? event.payment.amount : 499,
       accountHolder: event.payment?.accountHolder || 'FarmFusion Org',
-      qrImage: event.payment?.qrImage || '/uploads/default-qr.png'
+      qrImage: currentQrImage
     };
 
     const whatsappObj = {
@@ -101,12 +107,15 @@ export const updateEventDetails = async (req, res, next) => {
         upiId: parsedPayment.upiId !== undefined ? parsedPayment.upiId : (event.payment?.upiId || 'farmfusionai@okaxis'),
         amount: parsedPayment.amount !== undefined ? Number(parsedPayment.amount) : (event.payment?.amount || 499),
         accountHolder: parsedPayment.accountHolder !== undefined ? parsedPayment.accountHolder : (event.payment?.accountHolder || 'FarmFusion Org'),
-        qrImage: event.payment?.qrImage || '/uploads/default-qr.png'
+        qrImage: event.payment?.qrImage || 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=farmfusionai@okaxis'
       };
 
       if (req.file) {
-        event.payment.qrImage = `/uploads/${req.file.filename}`;
-      } else if (parsedPayment.qrImage) {
+        console.log('[Admin Event] Uploading new QR image to Cloudinary...');
+        const cloudinaryResult = await uploadToCloudinary(req.file.buffer);
+        event.payment.qrImage = cloudinaryResult?.secure_url || cloudinaryResult?.url;
+        console.log('[Admin Event] Cloudinary QR URL generated:', event.payment.qrImage);
+      } else if (parsedPayment.qrImage && !parsedPayment.qrImage.startsWith('/uploads')) {
         event.payment.qrImage = parsedPayment.qrImage;
       }
 

@@ -46,7 +46,7 @@ const eventSchema = new mongoose.Schema({
     upiId: { type: String, default: 'farmfusionai@okaxis' },
     amount: { type: Number, default: 499 },
     accountHolder: { type: String, default: 'FarmFusion Org' },
-    qrImage: { type: String, default: '/uploads/default-qr.png' }
+    qrImage: { type: String, default: 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=farmfusionai@okaxis' }
   },
   whatsapp: {
     group: { type: String, default: 'https://chat.whatsapp.com/sample-official-group' },

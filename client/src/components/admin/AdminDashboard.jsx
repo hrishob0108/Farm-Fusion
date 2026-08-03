@@ -126,7 +126,7 @@ export const AdminDashboard = ({ onClose }) => {
         upiId: settingsForm.payment?.upiId || 'farmfusionai@okaxis',
         amount: Number(settingsForm.payment?.amount) || 499,
         accountHolder: settingsForm.payment?.accountHolder || 'FarmFusion Org',
-        qrImage: settingsForm.payment?.qrImage || '/uploads/default-qr.png'
+        qrImage: settingsForm.payment?.qrImage || 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=farmfusionai@okaxis'
       };
       payload.append('payment', JSON.stringify(paymentObj));
 
@@ -559,7 +559,7 @@ export const AdminDashboard = ({ onClose }) => {
                 {/* Live QR Image Box */}
                 <div className="w-32 h-32 p-2 bg-white rounded-xl border border-[#D9CEBE] shadow-xs flex items-center justify-center shrink-0 overflow-hidden">
                   <img
-                    src={qrFile ? URL.createObjectURL(qrFile) : (settingsForm.payment?.qrImage || '/uploads/default-qr.png')}
+                    src={qrFile ? URL.createObjectURL(qrFile) : (settingsForm.payment?.qrImage || 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=farmfusionai@okaxis')}
                     alt="Payment QR Code Preview"
                     className="w-full h-full object-contain rounded-lg"
                   />

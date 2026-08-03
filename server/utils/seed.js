@@ -30,7 +30,7 @@ const seed = async () => {
           upiId: 'farmfusionai@okaxis',
           amount: 499,
           accountHolder: 'FarmFusion Org',
-          qrImage: '/uploads/default-qr.png'
+          qrImage: 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=farmfusionai@okaxis'
         },
         whatsapp: {
           group: 'https://chat.whatsapp.com/sample-official-group',

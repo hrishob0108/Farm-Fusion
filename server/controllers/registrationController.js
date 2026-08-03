@@ -1,5 +1,6 @@
 import { Registration } from '../models/Registration.js';
 import { Event } from '../models/Event.js';
+import { uploadToCloudinary } from '../services/cloudinaryService.js';
 
 // POST /api/register - Creates team registration strictly in MongoDB
 export const createRegistration = async (req, res, next) => {
@@ -65,8 +66,6 @@ export const createRegistration = async (req, res, next) => {
       }));
     }
 
-    const paymentScreenshot = `/uploads/${req.file.filename}`;
-
     // Duplicate check for Transaction ID
     const existingTxn = await Registration.findOne({ transactionId: new RegExp(`^${transactionId.trim()}$`, 'i') });
     if (existingTxn) {
@@ -99,6 +98,12 @@ export const createRegistration = async (req, res, next) => {
         return res.status(400).json({ success: false, message: 'One or more Registration Numbers are already registered.' });
       }
     }
+
+    // Upload Payment Screenshot directly to Cloudinary
+    console.log('[Registration] Uploading payment screenshot to Cloudinary...');
+    const cloudinaryResult = await uploadToCloudinary(req.file.buffer);
+    const paymentScreenshot = cloudinaryResult?.secure_url || cloudinaryResult?.url;
+    console.log('[Registration] Cloudinary URL generated:', paymentScreenshot);
 
     // Save to MongoDB
     const registration = new Registration({

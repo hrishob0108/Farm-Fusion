@@ -1,17 +1,17 @@
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import morgan from 'morgan';
-import dotenv from 'dotenv';
-import path from 'path';
-import fs from 'fs';
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import morgan from "morgan";
+import dotenv from "dotenv";
+import path from "path";
+import fs from "fs";
 
-import { connectDB } from './config/db.js';
-import { errorHandler } from './middleware/errorHandler.js';
+import { connectDB } from "./config/db.js";
+import { errorHandler } from "./middleware/errorHandler.js";
 
-import eventRoutes from './routes/eventRoutes.js';
-import registrationRoutes from './routes/registrationRoutes.js';
-import adminRoutes from './routes/adminRoutes.js';
+import eventRoutes from "./routes/eventRoutes.js";
+import registrationRoutes from "./routes/registrationRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 
 dotenv.config();
 
@@ -22,13 +22,13 @@ const PORT = process.env.PORT || 5000;
 connectDB();
 
 // Ensure Uploads Directory & Default QR Image exist
-const uploadsDir = path.resolve('uploads');
+const uploadsDir = path.resolve("uploads");
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
 // Generate a dummy SVG default QR code image if not present
-const defaultQrPath = path.join(uploadsDir, 'default-qr.png');
+const defaultQrPath = path.join(uploadsDir, "default-qr.png");
 if (!fs.existsSync(defaultQrPath)) {
   const dummySvgQR = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300" fill="none">
     <rect width="300" height="300" fill="#064e3b" rx="20"/>
@@ -48,27 +48,43 @@ if (!fs.existsSync(defaultQrPath)) {
   fs.writeFileSync(defaultQrPath, dummySvgQR);
 }
 
+const allowedOrigins = (process.env.FRONTEND_URL || "http://localhost:5173")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 // Middlewares
-app.use(helmet({
-  contentSecurityPolicy: false,
-  crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
-app.use(cors({ origin: true, credentials: true }));
-app.use(morgan('dev'));
-app.use(express.json({ limit: '20mb' }));
-app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  }),
+);
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+  }),
+);
+app.use(morgan("dev"));
+app.use(express.json({ limit: "20mb" }));
+app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
 // Static uploads serving
-app.use('/uploads', express.static(uploadsDir));
+app.use("/uploads", express.static(uploadsDir));
 
 // Mount Routes
-app.use('/api/event', eventRoutes);
-app.use('/api', registrationRoutes);
-app.use('/api/admin', adminRoutes);
+app.use("/api/event", eventRoutes);
+app.use("/api", registrationRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', name: 'FarmFusion API Server', timestamp: new Date().toISOString() });
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    name: "FarmFusion API Server",
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // Error handling middleware

@@ -66,8 +66,11 @@ export const RegistrationForm = () => {
   const watchedLeaderRegNo = watch('leader.regNo');
 
   useEffect(() => {
-    setFormData(watchedValues);
-  }, [watchedValues]);
+    const subscription = watch((value) => {
+      setFormData(value);
+    });
+    return () => subscription.unsubscribe();
+  }, [watch, setFormData]);
 
   // Automatic Debounced Team Name Availability Check
   useEffect(() => {

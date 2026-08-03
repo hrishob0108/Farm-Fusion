@@ -1,2 +1,28 @@
+# Environment files and credentials
 .env
-node_modules    
+.env.*
+.env.local
+.env.development
+.env.test
+.env.production
+.env.example
+.env.examples
+*.env
+
+# Dependencies
+node_modules
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Uploads (User uploaded payment receipts, dynamically saved images)
+/uploads/*
+!/uploads/default-qr.png
+!/uploads/.gitkeep
+
+# OS and Editor files
+.DS_Store
+.vscode
+.idea

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useEvent } from '../../context/EventContext';
-import { exportToCSV, exportToExcel, exportToPDF } from '../../services/exportUtils';
+import { exportToCSV, exportToJSON, exportToPDF } from '../../services/exportUtils';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import {
   Users, CheckCircle2, Clock, XCircle, Search,
-  FileSpreadsheet, FileText, Download, Trash2, RefreshCw, Eye, X, LogOut,
+  FileSpreadsheet, FileText, FileCode, Download, Trash2, RefreshCw, Eye, X, LogOut,
   Sliders, Activity, Check, Power, Mail, Phone, QrCode, MessageSquare, Link as LinkIcon
 } from 'lucide-react';
 
@@ -265,10 +265,10 @@ export const AdminDashboard = ({ onClose }) => {
               </button>
 
               <button
-                onClick={() => exportToExcel(registrations)}
+                onClick={() => exportToJSON(registrations)}
                 className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-[#FAF7F2] text-[#7A4F23] border border-[#D9CEBE] hover:bg-[#EFE9DF] text-xs font-bold transition cursor-pointer"
               >
-                <Download className="w-4 h-4 text-[#7A4F23]" /> Excel
+                <FileCode className="w-4 h-4 text-[#7A4F23]" /> JSON
               </button>
 
               <button

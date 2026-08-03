@@ -91,16 +91,73 @@ export const exportToCSV = (registrations) => {
   document.body.removeChild(link);
 };
 
-// Excel Export Handler
-export const exportToExcel = (registrations) => {
+// Constructs participant rows in the exact format of data.json
+export const buildJSONParticipantRows = (registrations) => {
+  const rows = [];
+
+  (registrations || []).forEach(r => {
+    // Leader Row
+    if (r.leader) {
+      const leaderRegNo = (r.leader.regNo || '').trim();
+      const leaderEmail = r.leader.email || (leaderRegNo ? `${leaderRegNo}@klu.ac.in` : '');
+      const leaderYear = r.leader.year || (leaderRegNo.startsWith('9925') ? '2' : '3');
+
+      rows.push({
+        regno: leaderRegNo,
+        name: r.leader.name || '',
+        teamName: r.teamName || '',
+        role: 'Team Leader',
+        branch: r.leader.branch || '',
+        year: String(leaderYear),
+        phone: r.leader.phone || '',
+        email: leaderEmail
+      });
+    }
+
+    // Additional Members Rows
+    if (Array.isArray(r.members)) {
+      r.members.forEach((m, idx) => {
+        const mRegNo = (m?.regNo || '').trim();
+        const mEmail = m?.email || (mRegNo ? `${mRegNo}@klu.ac.in` : '');
+        const mYear = m?.year || (mRegNo.startsWith('9925') ? '2' : '3');
+
+        rows.push({
+          regno: mRegNo,
+          name: m?.name || '',
+          teamName: r.teamName || '',
+          role: `Team Member ${idx + 1}`,
+          branch: m?.branch || '',
+          year: String(mYear),
+          phone: m?.phone || '',
+          email: mEmail
+        });
+      });
+    }
+  });
+
+  return rows;
+};
+
+// JSON Export Handler (matches data.json schema)
+export const exportToJSON = (registrations) => {
   if (!registrations || registrations.length === 0) return;
 
-  const flatRows = buildFlatParticipantRows(registrations);
+  const jsonRows = buildJSONParticipantRows(registrations);
+  const jsonString = JSON.stringify(jsonRows, null, 2);
 
-  const worksheet = XLSX.utils.json_to_sheet(flatRows);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Participants');
-  XLSX.writeFile(workbook, `Farm_Fusion_AI_Participants_${Date.now()}.xlsx`);
+  const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', `Farm_Fusion_AI_Participants_${Date.now()}.json`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+// Deprecated Excel Export Handler (redirects to JSON export)
+export const exportToExcel = (registrations) => {
+  exportToJSON(registrations);
 };
 
 // PDF Report Export Handler

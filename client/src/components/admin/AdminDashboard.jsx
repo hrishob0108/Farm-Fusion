@@ -254,8 +254,7 @@ export const AdminDashboard = ({ onClose }) => {
                 <option value="Pending">Pending</option>
                 <option value="Verified">Verified</option>
                 <option value="Rejected">Rejected</option>
-                <option value="Resubmit Requested">Resubmit Requested</option>
-              </select>
+                </select>
 
               <button
                 onClick={() => exportToCSV(registrations)}

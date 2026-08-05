@@ -42,10 +42,11 @@ export const AdminDashboard = ({ onClose }) => {
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
-  // Load Registrations Data from Backend with AbortSignal to cancel stale requests
+  // Load Registrations Data & Live Event Analytics from Backend
   const loadData = async (signal) => {
     try {
       setLoading(true);
+      fetchEventDetails();
       const regRes = await axios.get('/api/admin/registrations', {
         params: { search: debouncedSearchTerm, status: statusFilter },
         signal: signal instanceof AbortSignal ? signal : undefined
@@ -413,10 +414,15 @@ export const AdminDashboard = ({ onClose }) => {
                         </p>
                       </td>
 
-                      {/* Section / Branch */}
+                      {/* Section / Branch / Residency */}
                       <td className="p-4">
                         <p className="font-bold text-[#0F3A24]">{reg.leader?.section || 'N/A'}</p>
                         <p className="text-slate-600 text-[11px] font-medium">{reg.leader?.branch || 'N/A'}</p>
+                        <p className="text-[11px] font-bold text-[#7A4F23] mt-0.5">
+                          {reg.leader?.residenceType === 'Hosteller' 
+                            ? `Hosteller (${reg.leader.hostelName || 'Hostel'} - Room ${reg.leader.roomNumber || ''})` 
+                            : (reg.leader?.residenceType || 'Day Scholar')}
+                        </p>
                       </td>
 
                       {/* Members */}
@@ -424,8 +430,8 @@ export const AdminDashboard = ({ onClose }) => {
                         <span className="inline-flex px-2.5 py-0.5 rounded-full bg-[#FAF7F2] border border-[#D9CEBE] text-[#0F3A24] text-[11px] font-extrabold">
                           {(reg.members?.length || 0) + 1} Total
                         </span>
-                        <div className="text-[10px] text-[#7A4F23] font-bold mt-1 max-w-[170px] truncate">
-                          {reg.members?.map(m => `${m.name} (${m.regNo ? `${m.regNo}@klu.ac.in` : ''})`).join(', ') || 'Leader Only'}
+                        <div className="text-[10px] text-[#7A4F23] font-bold mt-1 max-w-[200px] truncate" title={reg.members?.map(m => `${m.name} (${m.residenceType === 'Hosteller' ? `${m.hostelName} R#${m.roomNumber}` : 'Day Scholar'})`).join(', ')}>
+                          {reg.members?.map(m => `${m.name} [${m.residenceType === 'Hosteller' ? `${m.hostelName || 'Hostel'} - ${m.roomNumber}` : 'Day Scholar'}]`).join(', ') || 'Leader Only'}
                         </div>
                       </td>
 

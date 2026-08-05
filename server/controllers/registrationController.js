@@ -86,6 +86,39 @@ export const createRegistration = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'All Registration Numbers must contain only numbers.' });
     }
 
+    // Residency validation for Leader
+    if (!leader.residenceType || !['Hosteller', 'Day Scholar'].includes(leader.residenceType)) {
+      return res.status(400).json({ success: false, message: 'Residency status (Hosteller or Day Scholar) is required for Team Leader.' });
+    }
+    if (leader.residenceType === 'Hosteller') {
+      if (!leader.hostelName || !leader.hostelName.trim() || !leader.roomNumber || !leader.roomNumber.trim()) {
+        return res.status(400).json({ success: false, message: 'Hostel Name and Room Number are required for Team Leader when Hosteller is selected.' });
+      }
+    } else {
+      leader.hostelName = '';
+      leader.roomNumber = '';
+    }
+
+    // Residency validation for Members
+    if (Array.isArray(members)) {
+      for (let i = 0; i < members.length; i++) {
+        const m = members[i];
+        if (m && (m.name || m.regNo || m.phone || m.section || m.branch || m.residenceType)) {
+          if (!m.residenceType || !['Hosteller', 'Day Scholar'].includes(m.residenceType)) {
+            return res.status(400).json({ success: false, message: `Residency status (Hosteller or Day Scholar) is required for Member ${i + 2}.` });
+          }
+          if (m.residenceType === 'Hosteller') {
+            if (!m.hostelName || !m.hostelName.trim() || !m.roomNumber || !m.roomNumber.trim()) {
+              return res.status(400).json({ success: false, message: `Hostel Name and Room Number are required for Member ${i + 2} when Hosteller is selected.` });
+            }
+          } else {
+            m.hostelName = '';
+            m.roomNumber = '';
+          }
+        }
+      }
+    }
+
     // Auto-generate @klu.ac.in email from regNo
     if (leader && leader.regNo) {
       leader.email = `${leader.regNo.trim()}@klu.ac.in`;

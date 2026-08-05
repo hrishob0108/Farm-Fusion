@@ -5,7 +5,18 @@ export const memberSchema = z.object({
   regNo: z.string().min(2, 'Registration Number is required').regex(/^\d+$/, 'Registration Number must contain only numbers'),
   phone: z.string().length(10, 'Phone number must be exactly 10 digits').regex(/^\d{10}$/, 'Phone number must contain only numbers'),
   section: z.string().min(1, 'Section is required'),
-  branch: z.string().min(1, 'Branch is required')
+  branch: z.string().min(1, 'Branch is required'),
+  residenceType: z.enum(['Hosteller', 'Day Scholar'], { required_error: 'Residency status is required' }),
+  hostelName: z.string().optional(),
+  roomNumber: z.string().optional()
+}).refine(data => {
+  if (data.residenceType === 'Hosteller') {
+    return !!data.hostelName?.trim() && !!data.roomNumber?.trim();
+  }
+  return true;
+}, {
+  message: 'Hostel Name and Room Number are required for Hosteller',
+  path: ['hostelName']
 });
 
 export const registrationFormSchema = z.object({

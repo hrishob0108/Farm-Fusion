@@ -61,7 +61,7 @@ export const EventProvider = ({ children }) => {
     }
     return {
       teamName: '',
-      leader: { name: '', regNo: '', section: '', branch: '', phone: '', email: '' },
+      leader: { name: '', regNo: '', section: '', branch: '', phone: '', email: '', residenceType: '', hostelName: '', roomNumber: '' },
       members: [],
       transactionId: '',
       paymentScreenshot: null
@@ -116,7 +116,7 @@ export const EventProvider = ({ children }) => {
   const checkLiveRegistrationOpen = async () => {
     const hasReservation = Boolean(activeReservation?.reservationId || localStorage.getItem('farm_fusion_active_reservation'));
     try {
-      const res = await axios.get('/api/event');
+      const res = await axios.get('/api/event', { timeout: 4000 });
       if (res.data) {
         setEventData(res.data);
         const isPortalOpen = res.data.isPortalOpen !== false;
@@ -245,7 +245,7 @@ export const EventProvider = ({ children }) => {
     localStorage.removeItem('farm_fusion_form_draft');
     setFormData({
       teamName: '',
-      leader: { name: '', regNo: '', section: '', branch: '', phone: '', email: '' },
+      leader: { name: '', regNo: '', section: '', branch: '', phone: '', email: '', residenceType: '', hostelName: '', roomNumber: '' },
       members: [],
       transactionId: '',
       paymentScreenshot: null

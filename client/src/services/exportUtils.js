@@ -32,6 +32,9 @@ const buildFlatParticipantRows = (registrations) => {
     if (r.leader) {
       const leaderRegNo = r.leader.regNo || '';
       const leaderEmail = r.leader.email || (leaderRegNo ? `${leaderRegNo.trim()}@klu.ac.in` : '');
+      const leaderResidency = r.leader.residenceType || 'Day Scholar';
+      const leaderHostel = r.leader.residenceType === 'Hosteller' ? (r.leader.hostelName || 'N/A') : 'N/A';
+      const leaderRoom = r.leader.residenceType === 'Hosteller' ? (r.leader.roomNumber || 'N/A') : 'N/A';
 
       rows.push({
         'Team Name': r.teamName,
@@ -41,6 +44,9 @@ const buildFlatParticipantRows = (registrations) => {
         'Phone Number': r.leader.phone || '',
         'Section': r.leader.section || '',
         'Branch': r.leader.branch || '',
+        'Residency Status': leaderResidency,
+        'Hostel Name': leaderHostel,
+        'Room Number': leaderRoom,
         'Transaction ID': r.transactionId || '',
         'Payment Screenshot Link': screenshotUrl,
         'Payment Status': r.paymentStatus || 'Pending',
@@ -53,6 +59,9 @@ const buildFlatParticipantRows = (registrations) => {
       r.members.forEach(m => {
         const mRegNo = m?.regNo || '';
         const mEmail = m?.email || (mRegNo ? `${mRegNo.trim()}@klu.ac.in` : '');
+        const mResidency = m?.residenceType || 'Day Scholar';
+        const mHostel = m?.residenceType === 'Hosteller' ? (m?.hostelName || 'N/A') : 'N/A';
+        const mRoom = m?.residenceType === 'Hosteller' ? (m?.roomNumber || 'N/A') : 'N/A';
 
         rows.push({
           'Team Name': r.teamName,
@@ -62,6 +71,9 @@ const buildFlatParticipantRows = (registrations) => {
           'Phone Number': m?.phone || '',
           'Section': m?.section || '',
           'Branch': m?.branch || '',
+          'Residency Status': mResidency,
+          'Hostel Name': mHostel,
+          'Room Number': mRoom,
           'Transaction ID': r.transactionId || '',
           'Payment Screenshot Link': screenshotUrl,
           'Payment Status': r.paymentStatus || 'Pending',
@@ -108,6 +120,10 @@ export const buildJSONParticipantRows = (registrations) => {
         teamName: r.teamName || '',
         role: 'Team Leader',
         branch: r.leader.branch || '',
+        section: r.leader.section || '',
+        residenceType: r.leader.residenceType || 'Day Scholar',
+        hostelName: r.leader.residenceType === 'Hosteller' ? (r.leader.hostelName || '') : '',
+        roomNumber: r.leader.residenceType === 'Hosteller' ? (r.leader.roomNumber || '') : '',
         year: String(leaderYear),
         phone: r.leader.phone || '',
         email: leaderEmail
@@ -127,6 +143,10 @@ export const buildJSONParticipantRows = (registrations) => {
           teamName: r.teamName || '',
           role: `Team Member ${idx + 1}`,
           branch: m?.branch || '',
+          section: m?.section || '',
+          residenceType: m?.residenceType || 'Day Scholar',
+          hostelName: m?.residenceType === 'Hosteller' ? (m?.hostelName || '') : '',
+          roomNumber: m?.residenceType === 'Hosteller' ? (m?.roomNumber || '') : '',
           year: String(mYear),
           phone: m?.phone || '',
           email: mEmail
@@ -184,18 +204,19 @@ export const exportToPDF = (registrations) => {
     r['Phone Number'],
     r['Section'],
     r['Branch'],
+    r['Residency Status'],
+    r['Hostel Name'],
+    r['Room Number'],
     r['Transaction ID'],
-    r['Payment Screenshot Link'],
-    r['Payment Status'],
-    r['Date & Time (IST)']
+    r['Payment Status']
   ]);
 
   autoTable(doc, {
     startY: 26,
     head: [[
       '#', 'Team Name', 'Name', 'Reg No', 'Email ID',
-      'Phone Number', 'Section', 'Branch', 'Transaction ID',
-      'Payment Screenshot Link', 'Payment Status', 'Date & Time (IST)'
+      'Phone', 'Section', 'Branch', 'Residency', 'Hostel', 'Room No',
+      'Txn ID', 'Status'
     ]],
     body: pdfBody,
     theme: 'grid',

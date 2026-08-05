@@ -1,12 +1,13 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useEvent } from '../../context/EventContext';
 import { CountdownTimer } from '../countdown/CountdownTimer';
 import { motion } from 'framer-motion';
-import { ArrowRight, Clock, Leaf } from 'lucide-react';
+import { ArrowRight, Clock, Leaf, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export const HeroHome = () => {
   const { eventData, setStep, checkLiveRegistrationOpen, fetchEventDetails } = useEvent();
+  const [isNavigating, setIsNavigating] = useState(false);
 
   // Auto-refresh event data & team progress count every 5 seconds silently in background
   useEffect(() => {
@@ -26,16 +27,35 @@ export const HeroHome = () => {
   const isOpen = eventData.registrationOpen !== false && !isLimitReached;
 
   const handleRegisterClick = async () => {
-    const status = await checkLiveRegistrationOpen();
-    if (!status.isOpen) {
+    if (!isOpen) {
       toast.error(
-        status.isLimit
+        isLimitReached
           ? 'Registrations are CLOSED because the maximum team limit has been reached.'
           : 'Registrations are currently CLOSED by the event organizers.'
       );
       return;
     }
-    setStep(2);
+
+    setIsNavigating(true);
+
+    try {
+      const status = await checkLiveRegistrationOpen();
+      if (!status.isOpen) {
+        toast.error(
+          status.isLimit
+            ? 'Registrations are CLOSED because the maximum team limit has been reached.'
+            : 'Registrations are currently CLOSED by the event organizers.'
+        );
+        setIsNavigating(false);
+        return;
+      }
+      setStep(2);
+    } catch (e) {
+      // Fallback: proceed to step 2 if live check encountered net error
+      setStep(2);
+    } finally {
+      setIsNavigating(false);
+    }
   };
 
   return (
@@ -98,20 +118,30 @@ export const HeroHome = () => {
         {/* Register Button */}
         <button
           onClick={handleRegisterClick}
-          className={`px-8 py-3.5 text-base font-extrabold rounded-xl shadow-md flex items-center justify-center gap-2 mx-auto transition cursor-pointer ${
+          disabled={isNavigating}
+          className={`px-8 py-3.5 text-base font-extrabold rounded-xl shadow-md flex items-center justify-center gap-2 mx-auto transition cursor-pointer disabled:opacity-80 disabled:cursor-not-allowed ${
             isOpen
               ? 'bg-[#0F3A24] hover:bg-[#0A2B1A] text-white'
               : 'bg-[#800E13] hover:bg-[#600A0E] text-white'
           }`}
         >
-          <span>
-            {isOpen 
-              ? 'Register Team' 
-              : isLimitReached 
-              ? 'Registrations Closed (Limit Reached)' 
-              : 'Registrations Closed'}
-          </span>
-          <ArrowRight className="w-5 h-5 text-[#D4A373]" />
+          {isNavigating ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin text-[#D4A373]" />
+              <span>Verifying & Opening Form...</span>
+            </>
+          ) : (
+            <>
+              <span>
+                {isOpen 
+                  ? 'Register Team' 
+                  : isLimitReached 
+                  ? 'Registrations Closed (Limit Reached)' 
+                  : 'Registrations Closed'}
+              </span>
+              <ArrowRight className="w-5 h-5 text-[#D4A373]" />
+            </>
+          )}
         </button>
 
       </div>

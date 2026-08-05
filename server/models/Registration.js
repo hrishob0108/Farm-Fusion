@@ -6,7 +6,10 @@ const memberSchema = new mongoose.Schema({
   email: { type: String },
   phone: { type: String, required: true },
   section: { type: String, required: true },
-  branch: { type: String, required: true }
+  branch: { type: String, required: true },
+  residenceType: { type: String, enum: ['Hosteller', 'Day Scholar'], required: true },
+  hostelName: { type: String, default: '' },
+  roomNumber: { type: String, default: '' }
 }, { _id: false });
 
 const registrationSchema = new mongoose.Schema({
@@ -45,5 +48,8 @@ const registrationSchema = new mongoose.Schema({
 });
 
 registrationSchema.index({ createdAt: -1 });
+registrationSchema.index({ 'leader.regNo': 1 });
+registrationSchema.index({ 'members.regNo': 1 });
+registrationSchema.index({ transactionId: 1 });
 
 export const Registration = mongoose.model('Registration', registrationSchema);

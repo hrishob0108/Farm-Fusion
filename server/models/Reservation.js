@@ -6,7 +6,10 @@ const memberSchema = new mongoose.Schema({
   email: { type: String },
   phone: { type: String, required: true },
   section: { type: String, required: true },
-  branch: { type: String, required: true }
+  branch: { type: String, required: true },
+  residenceType: { type: String, enum: ['Hosteller', 'Day Scholar'], required: true },
+  hostelName: { type: String, default: '' },
+  roomNumber: { type: String, default: '' }
 }, { _id: false });
 
 const reservationSchema = new mongoose.Schema({
@@ -48,5 +51,6 @@ const reservationSchema = new mongoose.Schema({
 
 // Compound indexes for fast active reservation query & cleanup
 reservationSchema.index({ status: 1, expiresAt: 1 });
+reservationSchema.index({ 'leader.regNo': 1 });
 
 export const Reservation = mongoose.models.Reservation || mongoose.model('Reservation', reservationSchema);

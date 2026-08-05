@@ -21,6 +21,7 @@ export const RegistrationForm = () => {
   // Automatic Live Team Name Availability State
   const [checkingName, setCheckingName] = useState(false);
   const [nameAvailability, setNameAvailability] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Initialize members default array to match numAdditionalMembers
   const defaultMembers = Array.from({ length: numAdditionalMembers }, (_, i) => ({
@@ -28,7 +29,10 @@ export const RegistrationForm = () => {
     regNo: formData.members?.[i]?.regNo || '',
     phone: formData.members?.[i]?.phone || '',
     section: formData.members?.[i]?.section || '',
-    branch: formData.members?.[i]?.branch || ''
+    branch: formData.members?.[i]?.branch || '',
+    residenceType: formData.members?.[i]?.residenceType || '',
+    hostelName: formData.members?.[i]?.hostelName || '',
+    roomNumber: formData.members?.[i]?.roomNumber || ''
   }));
 
   const {
@@ -42,7 +46,7 @@ export const RegistrationForm = () => {
   } = useForm({
     defaultValues: {
       teamName: formData.teamName || '',
-      leader: formData.leader || { name: '', regNo: '', phone: '', section: '', branch: '' },
+      leader: formData.leader || { name: '', regNo: '', phone: '', section: '', branch: '', residenceType: '', hostelName: '', roomNumber: '' },
       members: defaultMembers
     }
   });
@@ -56,7 +60,7 @@ export const RegistrationForm = () => {
   useEffect(() => {
     if (fields.length < numAdditionalMembers) {
       for (let i = fields.length; i < numAdditionalMembers; i++) {
-        append({ name: '', regNo: '', phone: '', section: '', branch: '' });
+        append({ name: '', regNo: '', phone: '', section: '', branch: '', residenceType: '', hostelName: '', roomNumber: '' });
       }
     }
   }, [numAdditionalMembers, fields.length, append]);
@@ -64,6 +68,7 @@ export const RegistrationForm = () => {
   const watchedValues = watch();
   const watchedTeamName = watch('teamName');
   const watchedLeaderRegNo = watch('leader.regNo');
+  const watchedLeaderResidenceType = watch('leader.residenceType');
 
   useEffect(() => {
     const subscription = watch((value) => {
@@ -101,15 +106,24 @@ export const RegistrationForm = () => {
   }, [watchedTeamName]);
 
   const onSubmit = async (data) => {
+    if (isSubmitting) return;
+
     if (!isRegistrationOpen) {
       toast.error(isLimitReached ? 'Registrations are CLOSED because team limit has been reached.' : 'Registrations are currently closed by the administrator.');
       return;
     }
 
     // Validate Leader Details
-    if (!data.leader?.name?.trim() || !data.leader?.regNo?.trim() || !data.leader?.phone?.trim() || !data.leader?.section?.trim() || !data.leader?.branch?.trim()) {
-      toast.error('Please complete all 5 required fields for Team Leader.');
+    if (!data.leader?.name?.trim() || !data.leader?.regNo?.trim() || !data.leader?.phone?.trim() || !data.leader?.section?.trim() || !data.leader?.branch?.trim() || !data.leader?.residenceType) {
+      toast.error('Please complete all required fields for Team Leader (including Residency Status).');
       return;
+    }
+
+    if (data.leader.residenceType === 'Hosteller') {
+      if (!data.leader.hostelName?.trim() || !data.leader.roomNumber?.trim()) {
+        toast.error('Please enter Hostel Name and Room Number for Team Leader.');
+        return;
+      }
     }
 
     if (!/^\d+$/.test(data.leader.regNo.trim())) {
@@ -120,7 +134,9 @@ export const RegistrationForm = () => {
     // Auto-generate @klu.ac.in email for leader
     const leaderWithEmail = {
       ...data.leader,
-      email: `${data.leader.regNo.trim()}@klu.ac.in`
+      email: `${data.leader.regNo.trim()}@klu.ac.in`,
+      hostelName: data.leader.residenceType === 'Hosteller' ? data.leader.hostelName.trim() : '',
+      roomNumber: data.leader.residenceType === 'Hosteller' ? data.leader.roomNumber.trim() : ''
     };
 
     // Filter out valid (filled) members and attach auto @klu.ac.in emails
@@ -129,13 +145,19 @@ export const RegistrationForm = () => {
 
     for (let i = 0; i < rawMembers.length; i++) {
       const m = rawMembers[i];
-      const hasAnyField = m.name?.trim() || m.regNo?.trim() || m.phone?.trim() || m.section?.trim() || m.branch?.trim();
+      const hasAnyField = m.name?.trim() || m.regNo?.trim() || m.phone?.trim() || m.section?.trim() || m.branch?.trim() || m.residenceType || m.hostelName?.trim() || m.roomNumber?.trim();
 
       if (hasAnyField) {
-        // If member form is partially filled, require all 5 fields
-        if (!m.name?.trim() || !m.regNo?.trim() || !m.phone?.trim() || !m.section?.trim() || !m.branch?.trim()) {
-          toast.error(`Please complete all 5 required fields for Member ${i + 2}.`);
+        // If member form is partially filled, require all fields including residency
+        if (!m.name?.trim() || !m.regNo?.trim() || !m.phone?.trim() || !m.section?.trim() || !m.branch?.trim() || !m.residenceType) {
+          toast.error(`Please complete all required fields for Member ${i + 2} (including Residency Status).`);
           return;
+        }
+        if (m.residenceType === 'Hosteller') {
+          if (!m.hostelName?.trim() || !m.roomNumber?.trim()) {
+            toast.error(`Please enter Hostel Name and Room Number for Member ${i + 2}.`);
+            return;
+          }
         }
         if (!/^\d+$/.test(m.regNo.trim())) {
           toast.error(`Member ${i + 2} Registration Number must contain only numbers.`);
@@ -143,7 +165,9 @@ export const RegistrationForm = () => {
         }
         validMembers.push({
           ...m,
-          email: `${m.regNo.trim()}@klu.ac.in`
+          email: `${m.regNo.trim()}@klu.ac.in`,
+          hostelName: m.residenceType === 'Hosteller' ? m.hostelName.trim() : '',
+          roomNumber: m.residenceType === 'Hosteller' ? m.roomNumber.trim() : ''
         });
       }
     }
@@ -165,32 +189,41 @@ export const RegistrationForm = () => {
       return;
     }
 
-    const status = await checkLiveRegistrationOpen();
-    if (!status.isOpen) {
-      toast.error(
-        status.isLimit
-          ? 'Registrations are CLOSED because the maximum team limit has been reached.'
-          : 'Registrations are currently CLOSED by the event organizers.'
-      );
-      return;
+    setIsSubmitting(true);
+
+    try {
+      const status = await checkLiveRegistrationOpen();
+      if (!status.isOpen) {
+        toast.error(
+          status.isLimit
+            ? 'Registrations are CLOSED because the maximum team limit has been reached.'
+            : 'Registrations are currently CLOSED by the event organizers.'
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      const finalData = {
+        ...data,
+        leader: leaderWithEmail,
+        members: validMembers
+      };
+
+      setFormData(finalData);
+
+      const res = await reserveSlot(finalData);
+      if (!res.success) {
+        toast.error(res.message || 'Failed to reserve slot. Please check your details.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      toast.success('🎉 Slot reserved for 5:00 minutes! Proceeding to Payment...');
+      setStep(3);
+    } catch (e) {
+      toast.error('Failed to submit form. Please check your network connection.');
+      setIsSubmitting(false);
     }
-
-    const finalData = {
-      ...data,
-      leader: leaderWithEmail,
-      members: validMembers
-    };
-
-    setFormData(finalData);
-
-    const res = await reserveSlot(finalData);
-    if (!res.success) {
-      toast.error(res.message || 'Failed to reserve slot. Please check your details.');
-      return;
-    }
-
-    toast.success('🎉 Slot reserved for 5:00 minutes! Proceeding to Payment...');
-    setStep(3);
   };
 
   return (
@@ -347,7 +380,7 @@ export const RegistrationForm = () => {
               </div>
 
               {/* Leader Branch */}
-              <div className="sm:col-span-2">
+              <div>
                 <label className="block text-xs font-bold text-[#0F3A24] uppercase mb-1">
                   Branch / Department <span className="text-[#800E13]">*</span>
                 </label>
@@ -360,6 +393,52 @@ export const RegistrationForm = () => {
                 />
               </div>
 
+              {/* Leader Residency Status */}
+              <div>
+                <label className="block text-xs font-bold text-[#0F3A24] uppercase mb-1">
+                  Residency Status <span className="text-[#800E13]">*</span>
+                </label>
+                <select
+                  disabled={!isRegistrationOpen}
+                  {...register('leader.residenceType')}
+                  className="w-full px-3.5 py-2.5 rounded-lg border border-[#D9CEBE] bg-white text-[#0F3A24] text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#0F3A24]/20 focus:border-[#0F3A24] disabled:bg-slate-100 disabled:text-slate-400 cursor-pointer"
+                >
+                  <option value="">-- Select Residency Status --</option>
+                  <option value="Day Scholar">Day Scholar</option>
+                  <option value="Hosteller">Hosteller</option>
+                </select>
+              </div>
+
+              {/* Leader Conditional Hostel Details */}
+              {watchedLeaderResidenceType === 'Hosteller' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:col-span-2 p-3.5 bg-[#FAF7F2] rounded-xl border border-[#E6DFD5]">
+                  <div>
+                    <label className="block text-xs font-bold text-[#0F3A24] uppercase mb-1">
+                      Hostel Name <span className="text-[#800E13]">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      disabled={!isRegistrationOpen}
+                      placeholder="e.g. MH-1 / LH-2"
+                      {...register('leader.hostelName')}
+                      className="w-full px-3.5 py-2.5 rounded-lg border border-[#D9CEBE] bg-white text-[#0F3A24] text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#0F3A24]/20 focus:border-[#0F3A24] disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[#0F3A24] uppercase mb-1">
+                      Room Number <span className="text-[#800E13]">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      disabled={!isRegistrationOpen}
+                      placeholder="e.g. 302"
+                      {...register('leader.roomNumber')}
+                      className="w-full px-3.5 py-2.5 rounded-lg border border-[#D9CEBE] bg-white text-[#0F3A24] text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#0F3A24]/20 focus:border-[#0F3A24] disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
 
@@ -368,6 +447,7 @@ export const RegistrationForm = () => {
             const memberNumber = index + 2;
             const isRequiredMember = memberNumber <= minMembers;
             const watchedMemberRegNo = watchedValues.members?.[index]?.regNo;
+            const watchedMemberResidenceType = watchedValues.members?.[index]?.residenceType;
 
             return (
               <div key={field.id} className="p-5 rounded-xl bg-[#FAF7F2]/50 border border-[#E6DFD5] space-y-4">
@@ -450,7 +530,7 @@ export const RegistrationForm = () => {
                   </div>
 
                   {/* Member Branch */}
-                  <div className="sm:col-span-2">
+                  <div>
                     <label className="block text-xs font-bold text-[#0F3A24] uppercase mb-1">
                       Branch / Department {isRequiredMember && <span className="text-[#800E13]">*</span>}
                     </label>
@@ -463,6 +543,52 @@ export const RegistrationForm = () => {
                     />
                   </div>
 
+                  {/* Member Residency Status */}
+                  <div>
+                    <label className="block text-xs font-bold text-[#0F3A24] uppercase mb-1">
+                      Residency Status {isRequiredMember && <span className="text-[#800E13]">*</span>}
+                    </label>
+                    <select
+                      disabled={!isRegistrationOpen}
+                      {...register(`members.${index}.residenceType`)}
+                      className="w-full px-3.5 py-2.5 rounded-lg border border-[#D9CEBE] bg-white text-[#0F3A24] text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#0F3A24]/20 focus:border-[#0F3A24] disabled:bg-slate-100 disabled:text-slate-400 cursor-pointer"
+                    >
+                      <option value="">-- Select Residency Status --</option>
+                      <option value="Day Scholar">Day Scholar</option>
+                      <option value="Hosteller">Hosteller</option>
+                    </select>
+                  </div>
+
+                  {/* Member Conditional Hostel Details */}
+                  {watchedMemberResidenceType === 'Hosteller' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:col-span-2 p-3.5 bg-[#FAF7F2] rounded-xl border border-[#E6DFD5]">
+                      <div>
+                        <label className="block text-xs font-bold text-[#0F3A24] uppercase mb-1">
+                          Hostel Name <span className="text-[#800E13]">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          disabled={!isRegistrationOpen}
+                          placeholder="e.g. MH-1 / LH-2"
+                          {...register(`members.${index}.hostelName`)}
+                          className="w-full px-3.5 py-2.5 rounded-lg border border-[#D9CEBE] bg-white text-[#0F3A24] text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#0F3A24]/20 focus:border-[#0F3A24] disabled:bg-slate-100 disabled:text-slate-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-[#0F3A24] uppercase mb-1">
+                          Room Number <span className="text-[#800E13]">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          disabled={!isRegistrationOpen}
+                          placeholder="e.g. 302"
+                          {...register(`members.${index}.roomNumber`)}
+                          className="w-full px-3.5 py-2.5 rounded-lg border border-[#D9CEBE] bg-white text-[#0F3A24] text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#0F3A24]/20 focus:border-[#0F3A24] disabled:bg-slate-100 disabled:text-slate-400"
+                        />
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               </div>
             );
@@ -472,28 +598,39 @@ export const RegistrationForm = () => {
           <div className="pt-6 border-t border-[#E6DFD5] flex flex-col sm:flex-row items-center justify-between gap-4">
             <button
               type="button"
+              disabled={isSubmitting}
               onClick={() => setStep(1)}
-              className="w-full sm:w-auto px-5 py-2.5 rounded-lg border border-[#D9CEBE] text-[#0F3A24] text-sm font-bold hover:bg-[#FAF7F2] transition cursor-pointer"
+              className="w-full sm:w-auto px-5 py-2.5 rounded-lg border border-[#D9CEBE] text-[#0F3A24] text-sm font-bold hover:bg-[#FAF7F2] transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               ← Back To Home
             </button>
 
             <button
               type="submit"
-              className={`w-full sm:w-auto px-6 py-3 rounded-xl font-extrabold text-sm shadow-md flex items-center justify-center gap-2 transition cursor-pointer ${
-                isRegistrationOpen
+              disabled={!isRegistrationOpen || isSubmitting}
+              className={`w-full sm:w-auto px-6 py-3 rounded-xl font-extrabold text-sm shadow-md flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-80 disabled:cursor-not-allowed ${
+                isRegistrationOpen && !isSubmitting
                   ? 'bg-[#0F3A24] hover:bg-[#0A2B1A] text-white'
                   : 'bg-[#800E13] hover:bg-[#600A0E] text-white'
               }`}
             >
-              <span>
-                {isRegistrationOpen 
-                  ? 'Proceed to Payment' 
-                  : isLimitReached 
-                  ? 'Registrations Closed (Limit Reached)' 
-                  : 'Registrations Closed'}
-              </span>
-              <ArrowRight className="w-4 h-4 text-[#D4A373]" />
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-[#D4A373]" />
+                  <span>Reserving Slot & Proceeding...</span>
+                </>
+              ) : (
+                <>
+                  <span>
+                    {isRegistrationOpen 
+                      ? 'Proceed to Payment' 
+                      : isLimitReached 
+                      ? 'Registrations Closed (Limit Reached)' 
+                      : 'Registrations Closed'}
+                  </span>
+                  <ArrowRight className="w-4 h-4 text-[#D4A373]" />
+                </>
+              )}
             </button>
           </div>
 

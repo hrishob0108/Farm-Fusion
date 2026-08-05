@@ -239,6 +239,57 @@ export const AdminDashboard = ({ onClose }) => {
         </div>
       </div>
 
+      {/* Live Analytics & Team Count Banner (Visible to Admin Only) */}
+      <div className="px-4 sm:px-6 py-4 bg-[#FAF7F2]/60 border-b border-[#E6DFD5] grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        
+        {/* Total Registered / Occupied Capacity */}
+        <div className="p-3.5 rounded-xl bg-white border border-[#E6DFD5] shadow-2xs text-left">
+          <p className="text-[10px] font-black text-[#7A4F23] uppercase tracking-wider flex items-center gap-1">
+            <Users className="w-3.5 h-3.5 text-[#0F3A24]" /> Total Capacity
+          </p>
+          <p className="text-lg sm:text-xl font-black text-[#0F3A24] mt-0.5">
+            {eventData.registeredCount || 0} / {eventData.maxTeams || 50} <span className="text-xs font-bold text-slate-500">Teams</span>
+          </p>
+          <p className="text-[10px] font-bold text-[#7A4F23] mt-0.5">
+            {eventData.registrationProgress || 0}% Occupied
+          </p>
+        </div>
+
+        {/* Confirmed Registrations */}
+        <div className="p-3.5 rounded-xl bg-white border border-[#E6DFD5] shadow-2xs text-left">
+          <p className="text-[10px] font-black text-emerald-800 uppercase tracking-wider flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Confirmed
+          </p>
+          <p className="text-lg sm:text-xl font-black text-emerald-900 mt-0.5">
+            {eventData.confirmedCount !== undefined ? eventData.confirmedCount : registrations.filter(r => r.paymentStatus === 'Verified').length} <span className="text-xs font-bold text-slate-500">Teams</span>
+          </p>
+          <p className="text-[10px] font-bold text-emerald-700 mt-0.5">Verified Payments</p>
+        </div>
+
+        {/* Active 5-Min Temporary Reservations */}
+        <div className="p-3.5 rounded-xl bg-white border border-[#E6DFD5] shadow-2xs text-left">
+          <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider flex items-center gap-1">
+            <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" /> Reservations
+          </p>
+          <p className="text-lg sm:text-xl font-black text-amber-900 mt-0.5">
+            {eventData.activeReservedCount || 0} <span className="text-xs font-bold text-slate-500">Holding</span>
+          </p>
+          <p className="text-[10px] font-bold text-amber-700 mt-0.5">Active 5-Min Slots</p>
+        </div>
+
+        {/* Available Remaining Slots */}
+        <div className="p-3.5 rounded-xl bg-white border border-[#E6DFD5] shadow-2xs text-left">
+          <p className="text-[10px] font-black text-[#0F3A24] uppercase tracking-wider flex items-center gap-1">
+            <Activity className="w-3.5 h-3.5 text-[#0F3A24]" /> Available Slots
+          </p>
+          <p className="text-lg sm:text-xl font-black text-[#0F3A24] mt-0.5">
+            {Math.max(0, (eventData.maxTeams || 50) - (eventData.registeredCount || 0))} <span className="text-xs font-bold text-slate-500">Left</span>
+          </p>
+          <p className="text-[10px] font-bold text-[#7A4F23] mt-0.5">Open for Booking</p>
+        </div>
+
+      </div>
+
       {/* Tabs Navigation */}
       <div className="px-4 sm:px-6 py-3 bg-white border-b border-[#E6DFD5] flex items-center gap-2 overflow-x-auto">
         {[

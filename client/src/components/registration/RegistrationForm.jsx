@@ -142,12 +142,12 @@ export const RegistrationForm = () => {
     const totalTeamSize = 1 + validMembers.length;
 
     if (totalTeamSize < minMembers) {
-      toast.error(`Minimum total team size required is ${minMembers} members (including Leader). Please fill details for at least ${minMembers - 1} additional member.`);
+      toast.error('Please fill in all required team member details to proceed.');
       return;
     }
 
     if (totalTeamSize > maxMembers) {
-      toast.error(`Maximum allowed team size is ${maxMembers} members.`);
+      toast.error('Team member limit exceeded.');
       return;
     }
 
@@ -201,7 +201,7 @@ export const RegistrationForm = () => {
             <AlertCircle className="w-5 h-5 text-[#800E13] shrink-0" />
             <span>
               {isLimitReached
-                ? `Registrations are CLOSED. Maximum allowed team limit (${maxTeams} teams) has been reached.`
+                ? 'Registrations are CLOSED. Event has reached maximum capacity.'
                 : 'Registrations are currently CLOSED. Form buttons are disabled.'}
             </span>
           </div>
@@ -214,7 +214,7 @@ export const RegistrationForm = () => {
               Event Registration
             </h2>
             <p className="text-sm text-[#7A4F23] mt-1 font-bold">
-              Team size: <strong>{minMembers} to {maxMembers} Members</strong> (including Leader)
+              Complete your team registration details below.
             </p>
           </div>
           <img

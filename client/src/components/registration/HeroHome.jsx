@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useEvent } from '../../context/EventContext';
 import { CountdownTimer } from '../countdown/CountdownTimer';
 import { motion } from 'framer-motion';
-import { ArrowRight, Clock } from 'lucide-react';
+import { ArrowRight, Clock, Rocket } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export const HeroHome = () => {
@@ -71,20 +71,21 @@ export const HeroHome = () => {
 
           <CountdownTimer targetDate={eventData.eventDate} />
 
-          {/* Real Team Limit Progress Bar */}
+          {/* Rocket Registration Demand Visual Bar (No Exact Team Numbers Shown to Public) */}
           <div className="w-full mt-6 text-left">
             <div className="flex items-center justify-between text-xs font-bold text-[#0F3A24] mb-2">
-              <span className="flex items-center gap-1.5">
-                Teams Registered Limit
+              <span className="flex items-center gap-1.5 font-black uppercase tracking-wider">
+                <Rocket className="w-4 h-4 text-[#7A4F23]" />
+                <span>Registration Demand</span>
                 <span className="inline-flex w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Live Auto-Refreshing Every 5s" />
               </span>
-              <span className={`font-extrabold ${isLimitReached ? 'text-[#800E13]' : 'text-[#7A4F23]'}`}>
-                {registeredCount} / {maxTeams} Teams {isLimitReached && '(FULL)'}
+              <span className={`font-extrabold flex items-center gap-1 ${isLimitReached ? 'text-[#800E13]' : 'text-[#7A4F23]'}`}>
+                {isLimitReached ? '🚀 FULLY BOOKED' : '🚀 SLOTS FILLING FAST'}
               </span>
             </div>
-            <div className="w-full h-3 bg-[#E6DFD5] rounded-full overflow-hidden p-0.5 border border-[#D9CEBE]">
+            <div className="relative w-full h-3.5 bg-[#E6DFD5] rounded-full overflow-hidden p-0.5 border border-[#D9CEBE]">
               <motion.div 
-                className={`h-full rounded-full transition-all duration-700 ease-out ${isLimitReached ? 'bg-[#800E13]' : 'bg-gradient-to-r from-[#0F3A24] to-[#7A4F23]'}`}
+                className={`h-full rounded-full transition-all duration-700 ease-out ${isLimitReached ? 'bg-[#800E13]' : 'bg-gradient-to-r from-[#0F3A24] via-[#7A4F23] to-[#D4A373]'}`}
                 initial={false}
                 animate={{ width: `${progressPercent}%` }}
                 transition={{ duration: 0.8, ease: 'easeOut' }}

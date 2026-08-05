@@ -271,7 +271,7 @@ export const PaymentSection = () => {
             <AlertCircle className="w-5 h-5 text-[#800E13] shrink-0" />
             <span>
               {registeredCount >= maxTeams
-                ? `Registrations are CLOSED. Maximum allowed team limit (${maxTeams} teams) has been reached.`
+                ? 'Registrations are CLOSED. Event has reached maximum capacity.'
                 : 'Registrations are currently CLOSED. Submission buttons are disabled.'}
             </span>
           </div>

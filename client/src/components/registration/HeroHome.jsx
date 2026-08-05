@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useEvent } from '../../context/EventContext';
 import { CountdownTimer } from '../countdown/CountdownTimer';
 import { motion } from 'framer-motion';
-import { ArrowRight, Clock, Rocket } from 'lucide-react';
+import { ArrowRight, Clock, Leaf } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export const HeroHome = () => {
@@ -71,25 +71,26 @@ export const HeroHome = () => {
 
           <CountdownTimer targetDate={eventData.eventDate} />
 
-          {/* Rocket Registration Demand Visual Bar (No Exact Team Numbers Shown to Public) */}
+          {/* Leaf Registration Demand Visual Bar */}
           <div className="w-full mt-6 text-left">
             <div className="flex items-center justify-between text-xs font-bold text-[#0F3A24] mb-2">
               <span className="flex items-center gap-1.5 font-black uppercase tracking-wider">
-                <Rocket className="w-4 h-4 text-[#7A4F23]" />
+                <Leaf className="w-4 h-4 text-emerald-700" />
                 <span>Registration Demand</span>
                 <span className="inline-flex w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Live Auto-Refreshing Every 5s" />
               </span>
-              <span className={`font-extrabold flex items-center gap-1 ${isLimitReached ? 'text-[#800E13]' : 'text-[#7A4F23]'}`}>
-                {isLimitReached ? '🚀 FULLY BOOKED' : '🚀 SLOTS FILLING FAST'}
-              </span>
             </div>
-            <div className="relative w-full h-3.5 bg-[#E6DFD5] rounded-full overflow-hidden p-0.5 border border-[#D9CEBE]">
+            <div className="relative w-full h-4 bg-[#E6DFD5] rounded-full p-0.5 border border-[#D9CEBE] flex items-center">
               <motion.div 
-                className={`h-full rounded-full transition-all duration-700 ease-out ${isLimitReached ? 'bg-[#800E13]' : 'bg-gradient-to-r from-[#0F3A24] via-[#7A4F23] to-[#D4A373]'}`}
+                className={`h-full rounded-full relative flex items-center justify-end transition-all duration-700 ease-out ${isLimitReached ? 'bg-[#800E13]' : 'bg-gradient-to-r from-[#0F3A24] via-[#2D6A4F] to-[#52B788]'}`}
                 initial={false}
-                animate={{ width: `${progressPercent}%` }}
+                animate={{ width: `${Math.max(progressPercent, 4)}%` }}
                 transition={{ duration: 0.8, ease: 'easeOut' }}
-              />
+              >
+                <div className="absolute -right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white border border-[#0F3A24] shadow-md flex items-center justify-center z-10">
+                  <Leaf className="w-3 h-3 text-[#0F3A24]" />
+                </div>
+              </motion.div>
             </div>
           </div>
         </div>

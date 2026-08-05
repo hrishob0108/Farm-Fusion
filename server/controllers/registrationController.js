@@ -79,6 +79,13 @@ export const createRegistration = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'All phone numbers must be exactly 10 digits.' });
     }
 
+    // Registration Number validation (must contain only numbers)
+    const allRegNoInputs = [leader?.regNo, ...members.map(m => m?.regNo)].filter(Boolean);
+    const invalidRegNo = allRegNoInputs.find(r => typeof r !== 'string' || !/^\d+$/.test(r.trim()));
+    if (invalidRegNo) {
+      return res.status(400).json({ success: false, message: 'All Registration Numbers must contain only numbers.' });
+    }
+
     // Auto-generate @klu.ac.in email from regNo
     if (leader && leader.regNo) {
       leader.email = `${leader.regNo.trim()}@klu.ac.in`;

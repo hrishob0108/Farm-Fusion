@@ -26,7 +26,7 @@ const MainContent = () => {
       <BackgroundEffects />
       <Navbar />
 
-      <main className="flex-1 relative z-10 py-6">
+      <main className="flex-1 relative z-10 pt-20 py-6">
         {/* Single Route Step Transition for Attendees */}
         {step === 1 && <HeroHome />}
         {step === 2 && <RegistrationForm />}

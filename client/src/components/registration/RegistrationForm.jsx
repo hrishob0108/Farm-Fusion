@@ -112,6 +112,11 @@ export const RegistrationForm = () => {
       return;
     }
 
+    if (!/^\d+$/.test(data.leader.regNo.trim())) {
+      toast.error('Leader Registration Number must contain only numbers.');
+      return;
+    }
+
     // Auto-generate @klu.ac.in email for leader
     const leaderWithEmail = {
       ...data.leader,
@@ -130,6 +135,10 @@ export const RegistrationForm = () => {
         // If member form is partially filled, require all 5 fields
         if (!m.name?.trim() || !m.regNo?.trim() || !m.phone?.trim() || !m.section?.trim() || !m.branch?.trim()) {
           toast.error(`Please complete all 5 required fields for Member ${i + 2}.`);
+          return;
+        }
+        if (!/^\d+$/.test(m.regNo.trim())) {
+          toast.error(`Member ${i + 2} Registration Number must contain only numbers.`);
           return;
         }
         validMembers.push({
@@ -292,9 +301,11 @@ export const RegistrationForm = () => {
                 </label>
                 <input
                   type="text"
+                  inputMode="numeric"
                   disabled={!isRegistrationOpen}
                   placeholder="e.g. 992400....."
                   {...register('leader.regNo')}
+                  onInput={(e) => { e.target.value = e.target.value.replace(/\D/g, ''); }}
                   className="w-full px-3.5 py-2.5 rounded-lg border border-[#D9CEBE] bg-white text-[#0F3A24] text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#0F3A24]/20 focus:border-[#0F3A24] disabled:bg-slate-100 disabled:text-slate-400"
                 />
                 {watchedLeaderRegNo && watchedLeaderRegNo.trim().length > 0 && (
@@ -393,9 +404,11 @@ export const RegistrationForm = () => {
                     </label>
                     <input
                       type="text"
+                      inputMode="numeric"
                       disabled={!isRegistrationOpen}
                       placeholder="e.g. 992400......"
                       {...register(`members.${index}.regNo`)}
+                      onInput={(e) => { e.target.value = e.target.value.replace(/\D/g, ''); }}
                       className="w-full px-3.5 py-2.5 rounded-lg border border-[#D9CEBE] bg-white text-[#0F3A24] text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#0F3A24]/20 focus:border-[#0F3A24] disabled:bg-slate-100 disabled:text-slate-400"
                     />
                     {watchedMemberRegNo && watchedMemberRegNo.trim().length > 0 && (

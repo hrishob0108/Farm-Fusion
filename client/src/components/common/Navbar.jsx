@@ -18,14 +18,11 @@ export const Navbar = () => {
             alt="CB Logo"
             className="h-12 w-12 rounded-full object-cover shadow-sm border border-[#E6DFD5] group-hover:scale-105 transition-transform duration-300"
           />
-          <div>
-            <span className="text-xl sm:text-2xl font-black tracking-tight text-[#0F3A24]">
-              {eventData.eventName || 'FarmFusion'}
-            </span>
-            <span className="hidden sm:block text-xs font-extrabold text-[#7A4F23]">
-              {eventData.tagline || 'Where AI Meets Agriculture'}
-            </span>
-          </div>
+           <img
+            src="/farm-fusion-logo.png"
+            alt="CB Logo"
+            className="h-25 w-52  object-cover group-hover:scale-105 transition-transform duration-300"
+          />
         </div>
 
         {/* Step Status Badge */}

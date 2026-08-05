@@ -40,7 +40,7 @@ export const BackgroundEffects = () => {
       </motion.div>
 
       {/* Floating Background AI Scanning Badge (Top Right) */}
-      <motion.div
+      {/* <motion.div
         animate={{ y: [0, 15, 0], x: [0, -10, 0] }}
         transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
         className="absolute top-36 right-6 sm:right-20 opacity-85 text-[#7A4F23] z-10"
@@ -49,7 +49,7 @@ export const BackgroundEffects = () => {
           <Bot className="w-7 h-7 text-[#7A4F23]" />
           <Scan className="w-4 h-4 text-[#0F3A24] animate-pulse" />
         </div>
-      </motion.div>
+      </motion.div> */}
 
     </div>
   );

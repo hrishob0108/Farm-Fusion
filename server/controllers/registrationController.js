@@ -1,5 +1,6 @@
 import { Registration } from '../models/Registration.js';
 import { Event } from '../models/Event.js';
+import { Reservation } from '../models/Reservation.js';
 import { uploadToCloudinary } from '../services/cloudinaryService.js';
 
 // POST /api/register - Creates team registration strictly in MongoDB
@@ -15,9 +16,23 @@ export const createRegistration = async (req, res, next) => {
       });
     }
 
+    const { teamName, transactionId, reservationId } = req.body;
+
+    // Validate 5-minute temporary reservation token if provided
+    let activeReservation = null;
+    if (reservationId) {
+      activeReservation = await Reservation.findOne({ reservationId, status: 'reserved' });
+      if (!activeReservation || activeReservation.expiresAt <= new Date()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Your 5-minute reservation slot has expired. Please fill out the registration form again to reserve a new slot.'
+        });
+      }
+    }
+
     const totalRegisteredCount = await Registration.countDocuments();
     const maxTeams = event?.maxTeams || 50;
-    if (totalRegisteredCount >= maxTeams) {
+    if (!activeReservation && totalRegisteredCount >= maxTeams) {
       console.warn(`[Registration Error] Registration capacity reached (${totalRegisteredCount}/${maxTeams})`);
       return res.status(400).json({
         success: false,
@@ -35,7 +50,6 @@ export const createRegistration = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Payment screenshot image/file is required' });
     }
 
-    const { teamName, transactionId } = req.body;
     let leader = req.body.leader;
     let members = req.body.members || [];
 
@@ -126,6 +140,12 @@ export const createRegistration = async (req, res, next) => {
     });
 
     const createdRecord = await registration.save();
+
+    // Mark temporary reservation as confirmed
+    if (activeReservation) {
+      activeReservation.status = 'confirmed';
+      await activeReservation.save();
+    }
 
     // Increment registration count in Event model
     try {

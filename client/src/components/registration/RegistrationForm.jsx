@@ -7,7 +7,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 
 export const RegistrationForm = () => {
-  const { eventData, formData, setFormData, setStep, checkLiveRegistrationOpen } = useEvent();
+  const { eventData, formData, setFormData, setStep, checkLiveRegistrationOpen, reserveSlot } = useEvent();
 
   const registeredCount = eventData.registeredCount || 0;
   const maxTeams = eventData.maxTeams || 50;
@@ -173,7 +173,14 @@ export const RegistrationForm = () => {
     };
 
     setFormData(finalData);
-    toast.success('Team details saved! Proceeding to Payment...');
+
+    const res = await reserveSlot(finalData);
+    if (!res.success) {
+      toast.error(res.message || 'Failed to reserve slot. Please check your details.');
+      return;
+    }
+
+    toast.success('🎉 Slot reserved for 5:00 minutes! Proceeding to Payment...');
     setStep(3);
   };
 
@@ -190,8 +197,8 @@ export const RegistrationForm = () => {
         
         {/* Closed Banner */}
         {!isRegistrationOpen && (
-          <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm font-bold flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+          <div className="mb-6 p-4 rounded-xl bg-[#800E13]/10 border border-[#800E13]/30 text-[#800E13] text-xs sm:text-sm font-bold flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-[#800E13] shrink-0" />
             <span>
               {isLimitReached
                 ? `Registrations are CLOSED. Maximum allowed team limit (${maxTeams} teams) has been reached.`
@@ -222,7 +229,7 @@ export const RegistrationForm = () => {
           {/* 1. TOP SECTION: TEAM NAME WITH AUTOMATIC LIVE CHECK */}
           <div className="p-5 rounded-xl bg-[#FAF7F2] border border-[#E6DFD5] space-y-2">
             <label className="block text-xs font-black text-[#0F3A24] uppercase tracking-wide">
-              Team Name <span className="text-rose-500">*</span>
+              Team Name <span className="text-[#800E13]">*</span>
             </label>
             
             <div className="relative">
@@ -245,14 +252,14 @@ export const RegistrationForm = () => {
             {/* Automatic Availability Indicator */}
             {nameAvailability && !checkingName && (
               <div className={`flex items-center gap-1.5 text-xs font-bold ${
-                nameAvailability.isAvailable ? 'text-[#0F3A24]' : 'text-rose-600'
+                nameAvailability.isAvailable ? 'text-[#0F3A24]' : 'text-[#800E13]'
               }`}>
                 {nameAvailability.isAvailable ? <CheckCircle2 className="w-4 h-4 text-[#0F3A24]" /> : <XCircle className="w-4 h-4" />}
                 <span>{nameAvailability.message}</span>
               </div>
             )}
             
-            {errors.teamName && <p className="text-rose-600 text-xs font-bold">{errors.teamName.message}</p>}
+            {errors.teamName && <p className="text-[#800E13] text-xs font-bold">{errors.teamName.message}</p>}
           </div>
 
           {/* 2. TEAM LEADER DETAILS (MEMBER 1) */}
@@ -267,7 +274,7 @@ export const RegistrationForm = () => {
               {/* Leader Name */}
               <div>
                 <label className="block text-xs font-bold text-[#0F3A24] uppercase mb-1">
-                  Full Name <span className="text-rose-500">*</span>
+                  Full Name <span className="text-[#800E13]">*</span>
                 </label>
                 <input
                   type="text"
@@ -281,7 +288,7 @@ export const RegistrationForm = () => {
               {/* Leader Registration Number & Live @klu.ac.in Email Badge */}
               <div>
                 <label className="block text-xs font-bold text-[#0F3A24] uppercase mb-1">
-                  Registration Number <span className="text-rose-500">*</span>
+                  Registration Number <span className="text-[#800E13]">*</span>
                 </label>
                 <input
                   type="text"
@@ -301,7 +308,7 @@ export const RegistrationForm = () => {
               {/* Leader Phone Number */}
               <div>
                 <label className="block text-xs font-bold text-[#0F3A24] uppercase mb-1">
-                  Phone Number <span className="text-rose-500">*</span>
+                  Phone Number <span className="text-[#800E13]">*</span>
                 </label>
                 <input
                   type="tel"
@@ -317,7 +324,7 @@ export const RegistrationForm = () => {
               {/* Leader Section */}
               <div>
                 <label className="block text-xs font-bold text-[#0F3A24] uppercase mb-1">
-                  Section <span className="text-rose-500">*</span>
+                  Section <span className="text-[#800E13]">*</span>
                 </label>
                 <input
                   type="text"
@@ -331,7 +338,7 @@ export const RegistrationForm = () => {
               {/* Leader Branch */}
               <div className="sm:col-span-2">
                 <label className="block text-xs font-bold text-[#0F3A24] uppercase mb-1">
-                  Branch / Department <span className="text-rose-500">*</span>
+                  Branch / Department <span className="text-[#800E13]">*</span>
                 </label>
                 <input
                   type="text"
@@ -368,7 +375,7 @@ export const RegistrationForm = () => {
                   {/* Member Name */}
                   <div>
                     <label className="block text-xs font-bold text-[#0F3A24] uppercase mb-1">
-                      Full Name {isRequiredMember && <span className="text-rose-500">*</span>}
+                      Full Name {isRequiredMember && <span className="text-[#800E13]">*</span>}
                     </label>
                     <input
                       type="text"
@@ -382,7 +389,7 @@ export const RegistrationForm = () => {
                   {/* Member Registration Number & Live @klu.ac.in Email Badge */}
                   <div>
                     <label className="block text-xs font-bold text-[#0F3A24] uppercase mb-1">
-                      Registration Number {isRequiredMember && <span className="text-rose-500">*</span>}
+                      Registration Number {isRequiredMember && <span className="text-[#800E13]">*</span>}
                     </label>
                     <input
                       type="text"
@@ -402,7 +409,7 @@ export const RegistrationForm = () => {
                   {/* Member Phone Number */}
                   <div>
                     <label className="block text-xs font-bold text-[#0F3A24] uppercase mb-1">
-                      Phone Number {isRequiredMember && <span className="text-rose-500">*</span>}
+                      Phone Number {isRequiredMember && <span className="text-[#800E13]">*</span>}
                     </label>
                     <input
                       type="tel"
@@ -418,7 +425,7 @@ export const RegistrationForm = () => {
                   {/* Member Section */}
                   <div>
                     <label className="block text-xs font-bold text-[#0F3A24] uppercase mb-1">
-                      Section {isRequiredMember && <span className="text-rose-500">*</span>}
+                      Section {isRequiredMember && <span className="text-[#800E13]">*</span>}
                     </label>
                     <input
                       type="text"
@@ -432,7 +439,7 @@ export const RegistrationForm = () => {
                   {/* Member Branch */}
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-bold text-[#0F3A24] uppercase mb-1">
-                      Branch / Department {isRequiredMember && <span className="text-rose-500">*</span>}
+                      Branch / Department {isRequiredMember && <span className="text-[#800E13]">*</span>}
                     </label>
                     <input
                       type="text"
@@ -463,7 +470,7 @@ export const RegistrationForm = () => {
               className={`w-full sm:w-auto px-6 py-3 rounded-xl font-extrabold text-sm shadow-md flex items-center justify-center gap-2 transition cursor-pointer ${
                 isRegistrationOpen
                   ? 'bg-[#0F3A24] hover:bg-[#0A2B1A] text-white'
-                  : 'bg-rose-700 hover:bg-rose-800 text-white'
+                  : 'bg-[#800E13] hover:bg-[#600A0E] text-white'
               }`}
             >
               <span>

@@ -1,5 +1,6 @@
 import { Event } from '../models/Event.js';
 import { Registration } from '../models/Registration.js';
+import { Reservation } from '../models/Reservation.js';
 import { uploadToCloudinary } from '../services/cloudinaryService.js';
 
 // GET /api/event - Fetches live event configuration strictly from MongoDB
@@ -30,7 +31,12 @@ export const getEventDetails = async (req, res, next) => {
       });
     }
 
-    const registeredCount = await Registration.countDocuments();
+    const confirmedCount = await Registration.countDocuments();
+    const activeReservedCount = await Reservation.countDocuments({
+      status: 'reserved',
+      expiresAt: { $gt: new Date() }
+    });
+    const registeredCount = confirmedCount + activeReservedCount;
     const maxTeams = event.maxTeams || 50;
     const progressPercent = Math.min(Math.round((registeredCount / maxTeams) * 100), 100);
 
@@ -56,12 +62,15 @@ export const getEventDetails = async (req, res, next) => {
       eventName: event.eventName,
       tagline: event.tagline,
       eventDate: event.eventDate,
-      registrationOpen: event.registrationOpen && registeredCount < maxTeams,
+      isPortalOpen: event.registrationOpen !== false,
+      registrationOpen: event.registrationOpen !== false && registeredCount < maxTeams,
       registrationProgress: progressPercent,
       minMembers: event.minMembers || 2,
       maxMembers: event.maxMembers || 4,
       maxTeams: maxTeams,
       registeredCount: registeredCount,
+      confirmedCount: confirmedCount,
+      activeReservedCount: activeReservedCount,
       payment: paymentObj,
       whatsapp: whatsappObj
     });

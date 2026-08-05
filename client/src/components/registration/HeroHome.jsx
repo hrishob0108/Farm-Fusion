@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useEvent } from '../../context/EventContext';
 import { CountdownTimer } from '../countdown/CountdownTimer';
 import { motion } from 'framer-motion';
@@ -6,7 +6,16 @@ import { ArrowRight, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export const HeroHome = () => {
-  const { eventData, setStep, checkLiveRegistrationOpen } = useEvent();
+  const { eventData, setStep, checkLiveRegistrationOpen, fetchEventDetails } = useEvent();
+
+  // Auto-refresh event data & team progress count every 5 seconds silently in background
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchEventDetails();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [fetchEventDetails]);
 
   const registeredCount = eventData.registeredCount || 0;
   const maxTeams = eventData.maxTeams || 50;
@@ -42,11 +51,11 @@ export const HeroHome = () => {
         
         {/* Official Farm Fusion AI Logo Enclosed in Fitted Box */}
         <div className="mb-8 flex items-center justify-center">
-          <div className="p-3.5 sm:p-5 rounded-2xl bg-[#FAF7F2] border border-[#E6DFD5] shadow-xs inline-flex items-center justify-center">
+          <div className="p-3.5 sm:p-5  inline-flex items-center justify-center">
             <img
               src="/farm-fusion-logo.png"
               alt="FarmFusion Logo"
-              className="h-20 sm:h-28 max-w-full object-contain"
+              className="h-30 sm:h-30 w-80 sm:w-80 object-contain"
             />
           </div>
         </div>
@@ -65,17 +74,20 @@ export const HeroHome = () => {
           {/* Real Team Limit Progress Bar */}
           <div className="w-full mt-6 text-left">
             <div className="flex items-center justify-between text-xs font-bold text-[#0F3A24] mb-2">
-              <span>Teams Registered Limit</span>
-              <span className={`font-extrabold ${isLimitReached ? 'text-rose-600' : 'text-[#7A4F23]'}`}>
+              <span className="flex items-center gap-1.5">
+                Teams Registered Limit
+                <span className="inline-flex w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Live Auto-Refreshing Every 5s" />
+              </span>
+              <span className={`font-extrabold ${isLimitReached ? 'text-[#800E13]' : 'text-[#7A4F23]'}`}>
                 {registeredCount} / {maxTeams} Teams {isLimitReached && '(FULL)'}
               </span>
             </div>
             <div className="w-full h-3 bg-[#E6DFD5] rounded-full overflow-hidden p-0.5 border border-[#D9CEBE]">
               <motion.div 
-                className={`h-full rounded-full ${isLimitReached ? 'bg-rose-600' : 'bg-gradient-to-r from-[#0F3A24] to-[#7A4F23]'}`}
-                initial={{ width: '0%' }}
+                className={`h-full rounded-full transition-all duration-700 ease-out ${isLimitReached ? 'bg-[#800E13]' : 'bg-gradient-to-r from-[#0F3A24] to-[#7A4F23]'}`}
+                initial={false}
                 animate={{ width: `${progressPercent}%` }}
-                transition={{ duration: 1.2, ease: 'easeOut' }}
+                transition={{ duration: 0.8, ease: 'easeOut' }}
               />
             </div>
           </div>
@@ -87,7 +99,7 @@ export const HeroHome = () => {
           className={`px-8 py-3.5 text-base font-extrabold rounded-xl shadow-md flex items-center justify-center gap-2 mx-auto transition cursor-pointer ${
             isOpen
               ? 'bg-[#0F3A24] hover:bg-[#0A2B1A] text-white'
-              : 'bg-rose-700 hover:bg-rose-800 text-white'
+              : 'bg-[#800E13] hover:bg-[#600A0E] text-white'
           }`}
         >
           <span>

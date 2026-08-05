@@ -25,12 +25,12 @@ export const BackgroundEffects = () => {
 
 
 
-      {/* Farmer Background Cutout Artwork (Bottom Right) */}
+      {/* Farmer Background Cutout Artwork (Bottom Right Flush to Edge) */}
       <motion.div 
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 0.98, y: 0 }}
         transition={{ duration: 1, ease: 'easeOut' }}
-        className="absolute bottom-0 right-0 sm:right-6 max-w-[300px] sm:max-w-[440px] pointer-events-none z-10"
+        className="absolute bottom-0 right-0 max-w-[300px] sm:max-w-[440px] pointer-events-none z-10"
       >
         <img
           src="/farmer-cutout.png"

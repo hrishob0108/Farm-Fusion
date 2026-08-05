@@ -4,7 +4,28 @@ import axios from 'axios';
 const EventContext = createContext();
 
 export const EventProvider = ({ children }) => {
-  const [step, setStep] = useState(1); // 1: Home, 2: Registration, 3: Payment, 4: Success
+  // Active Reservation State (Persisted in LocalStorage)
+  const [activeReservation, setActiveReservation] = useState(() => {
+    const saved = localStorage.getItem('farm_fusion_active_reservation');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (_e) {}
+    }
+    return null;
+  });
+
+  const [step, setStep] = useState(() => {
+    const savedRes = localStorage.getItem('farm_fusion_active_reservation');
+    if (savedRes) {
+      try {
+        const parsed = JSON.parse(savedRes);
+        if (parsed?.expiresAt && new Date(parsed.expiresAt) > new Date()) {
+          return 3; // Auto-resume on Payment Page on page reload!
+        }
+      } catch (_e) {}
+    }
+    return 1;
+  });
+
   const [loadingEvent, setLoadingEvent] = useState(true);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [submittedRegistration, setSubmittedRegistration] = useState(null);
@@ -93,23 +114,134 @@ export const EventProvider = ({ children }) => {
 
   // On-Demand Real-Time Registration Status Check from MongoDB
   const checkLiveRegistrationOpen = async () => {
+    const hasReservation = Boolean(activeReservation?.reservationId || localStorage.getItem('farm_fusion_active_reservation'));
     try {
       const res = await axios.get('/api/event');
       if (res.data) {
         setEventData(res.data);
+        const isPortalOpen = res.data.isPortalOpen !== false;
         const isLimit = (res.data.registeredCount || 0) >= (res.data.maxTeams || 50);
-        const isOpen = res.data.registrationOpen !== false && !isLimit;
-        return { isOpen, isLimit, data: res.data };
+        const isOpen = isPortalOpen && (!isLimit || hasReservation);
+        return { isOpen, isLimit: isLimit && !hasReservation, isPortalOpen, data: res.data };
       }
     } catch (error) {
       console.warn('[EventContext] Live status check warning:', error.message);
     }
+    const isPortalOpen = eventData.isPortalOpen !== false;
     const isLimit = (eventData.registeredCount || 0) >= (eventData.maxTeams || 50);
-    const isOpen = eventData.registrationOpen !== false && !isLimit;
-    return { isOpen, isLimit, data: eventData };
+    const isOpen = isPortalOpen && (!isLimit || hasReservation);
+    return { isOpen, isLimit: isLimit && !hasReservation, isPortalOpen, data: eventData };
+  };
+
+  // Active Reservation State Persistence
+  useEffect(() => {
+    if (activeReservation) {
+      localStorage.setItem('farm_fusion_active_reservation', JSON.stringify(activeReservation));
+    } else {
+      localStorage.removeItem('farm_fusion_active_reservation');
+    }
+  }, [activeReservation]);
+
+  // Verify active reservation status on mount / page reload & sync remaining time
+  useEffect(() => {
+    const verifyOnMount = async () => {
+      const savedRes = localStorage.getItem('farm_fusion_active_reservation');
+      if (!savedRes) return;
+      try {
+        const parsed = JSON.parse(savedRes);
+        if (parsed?.reservationId) {
+          const res = await axios.get(`/api/reservations/status/${parsed.reservationId}`);
+          if (res.data.success && res.data.status === 'reserved' && res.data.remainingSeconds > 0) {
+            setActiveReservation({
+              ...parsed,
+              expiresAt: res.data.expiresAt,
+              remainingSeconds: res.data.remainingSeconds
+            });
+            setStep(3); // Stay on Payment Page
+          } else {
+            setActiveReservation(null);
+            localStorage.removeItem('farm_fusion_active_reservation');
+            setStep(1);
+          }
+        }
+      } catch (e) {
+        try {
+          const parsed = JSON.parse(savedRes);
+          if (parsed?.expiresAt && new Date(parsed.expiresAt) > new Date()) {
+            setStep(3);
+          } else {
+            setActiveReservation(null);
+            localStorage.removeItem('farm_fusion_active_reservation');
+            setStep(1);
+          }
+        } catch (_e) {
+          setActiveReservation(null);
+          localStorage.removeItem('farm_fusion_active_reservation');
+          setStep(1);
+        }
+      }
+    };
+    verifyOnMount();
+  }, []);
+
+  // Reserve a 5-minute temporary slot
+  const reserveSlot = async (payloadData) => {
+    try {
+      const res = await axios.post('/api/reservations/reserve', payloadData);
+      if (res.data.success) {
+        const resInfo = {
+          reservationId: res.data.reservationId,
+          expiresAt: res.data.expiresAt,
+          remainingSeconds: res.data.remainingSeconds || 300,
+          teamName: payloadData.teamName
+        };
+        setActiveReservation(resInfo);
+        fetchEventDetails(); // Instantly update global count
+        return { success: true, data: resInfo };
+      }
+      return { success: false, message: res.data.message || 'Failed to reserve slot' };
+    } catch (error) {
+      const msg = error.response?.data?.message || 'Slot reservation failed';
+      return { success: false, message: msg };
+    }
+  };
+
+  // Release current active reservation slot
+  const releaseSlot = async () => {
+    if (activeReservation?.reservationId) {
+      try {
+        await axios.post('/api/reservations/release', { reservationId: activeReservation.reservationId });
+      } catch (e) {}
+    }
+    setActiveReservation(null);
+    localStorage.removeItem('farm_fusion_active_reservation');
+    fetchEventDetails();
+  };
+
+  // Check reservation validity from backend
+  const checkReservationStatus = async () => {
+    if (!activeReservation?.reservationId) return { valid: false };
+    try {
+      const res = await axios.get(`/api/reservations/status/${activeReservation.reservationId}`);
+      if (res.data.success && res.data.status === 'reserved') {
+        const remaining = res.data.remainingSeconds;
+        if (remaining <= 0) {
+          releaseSlot();
+          return { valid: false, message: 'Reservation has expired' };
+        }
+        return { valid: true, remainingSeconds: remaining, expiresAt: res.data.expiresAt };
+      } else {
+        releaseSlot();
+        return { valid: false, message: res.data.message || 'Reservation expired' };
+      }
+    } catch (e) {
+      releaseSlot();
+      return { valid: false, message: 'Reservation invalid' };
+    }
   };
 
   const resetRegistrationForm = () => {
+    releaseSlot();
     localStorage.removeItem('farm_fusion_form_draft');
     setFormData({
       teamName: '',
@@ -136,7 +268,12 @@ export const EventProvider = ({ children }) => {
       submittedRegistration,
       setSubmittedRegistration,
       resetRegistrationForm,
-      loadingEvent
+      loadingEvent,
+      activeReservation,
+      setActiveReservation,
+      reserveSlot,
+      releaseSlot,
+      checkReservationStatus
     }}>
       {children}
     </EventContext.Provider>

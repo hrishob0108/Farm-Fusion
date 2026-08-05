@@ -10,6 +10,7 @@ import { errorHandler } from "./middleware/errorHandler.js";
 import eventRoutes from "./routes/eventRoutes.js";
 import registrationRoutes from "./routes/registrationRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import reservationRoutes from "./routes/reservationRoutes.js";
 
 dotenv.config();
 
@@ -43,6 +44,7 @@ app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
 // Mount Routes
 app.use("/api/event", eventRoutes);
+app.use("/api/reservations", reservationRoutes);
 app.use("/api", registrationRoutes);
 app.use("/api/admin", adminRoutes);
 

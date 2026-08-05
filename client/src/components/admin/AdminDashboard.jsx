@@ -20,6 +20,7 @@ export const AdminDashboard = ({ onClose }) => {
 
   // Filters & Search
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
 
   // Selected screenshot preview modal
@@ -33,26 +34,66 @@ export const AdminDashboard = ({ onClose }) => {
     setSettingsForm(eventData);
   }, [eventData]);
 
-  // Load Registrations Data from Backend
-  const loadData = async () => {
+  // Debounce search input by 300ms to eliminate typing lag and avoid excessive API requests
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  // Load Registrations Data from Backend with AbortSignal to cancel stale requests
+  const loadData = async (signal) => {
     try {
       setLoading(true);
       const regRes = await axios.get('/api/admin/registrations', {
-        params: { search: searchTerm, status: statusFilter }
+        params: { search: debouncedSearchTerm, status: statusFilter },
+        signal: signal instanceof AbortSignal ? signal : undefined
       });
       if (regRes.data?.registrations) {
         setRegistrations(regRes.data.registrations);
       }
     } catch (error) {
-      console.warn('[AdminDashboard] Registration fetch fallback active:', error.message);
+      if (!axios.isCancel(error) && error.name !== 'CanceledError' && error.name !== 'AbortError') {
+        console.warn('[AdminDashboard] Registration fetch fallback active:', error.message);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
-  }, [searchTerm, statusFilter]);
+    const controller = new AbortController();
+    loadData(controller.signal);
+
+    return () => {
+      controller.abort();
+    };
+  }, [debouncedSearchTerm, statusFilter]);
+
+  // Real-time instant client-side filtering over loaded records
+  const filteredRegistrations = React.useMemo(() => {
+    if (!searchTerm.trim()) return registrations;
+
+    const term = searchTerm.toLowerCase().trim();
+    return registrations.filter(reg => {
+      const teamName = reg.teamName?.toLowerCase() || '';
+      const leaderName = reg.leader?.name?.toLowerCase() || '';
+      const regNo = reg.leader?.regNo?.toLowerCase() || '';
+      const email = reg.leader?.email?.toLowerCase() || '';
+      const txnId = reg.transactionId?.toLowerCase() || '';
+      const phone = reg.leader?.phone?.toLowerCase() || '';
+
+      return (
+        teamName.includes(term) ||
+        leaderName.includes(term) ||
+        regNo.includes(term) ||
+        email.includes(term) ||
+        txnId.includes(term) ||
+        phone.includes(term)
+      );
+    });
+  }, [registrations, searchTerm]);
 
   // Update Registration Payment Status Handler
   const handleUpdateStatus = async (id, paymentStatus, rejectionReason = '') => {
@@ -183,7 +224,7 @@ export const AdminDashboard = ({ onClose }) => {
 
           <button
             onClick={logout}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 text-xs font-bold transition cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#800E13]/10 text-[#800E13] border border-[#800E13]/30 hover:bg-[#800E13]/20 text-xs font-bold transition cursor-pointer"
           >
             <LogOut className="w-4 h-4" /> Logout
           </button>
@@ -238,8 +279,18 @@ export const AdminDashboard = ({ onClose }) => {
                 placeholder="Search Team, Leader, Reg No, Email, Txn ID..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 py-2.5 rounded-lg bg-[#FAF7F2] border border-[#D9CEBE] text-xs font-bold text-[#0F3A24] placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0F3A24]/20 focus:border-[#0F3A24]"
+                className="w-full pl-9 pr-9 py-2.5 rounded-lg bg-[#FAF7F2] border border-[#D9CEBE] text-xs font-bold text-[#0F3A24] placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0F3A24]/20 focus:border-[#0F3A24]"
               />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-400 hover:text-[#0F3A24] hover:bg-slate-200/60 transition cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
             {/* Status Filter & Export Buttons */}
@@ -257,21 +308,21 @@ export const AdminDashboard = ({ onClose }) => {
               </select>
 
               <button
-                onClick={() => exportToCSV(registrations)}
+                onClick={() => exportToCSV(filteredRegistrations)}
                 className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-[#FAF7F2] text-[#0F3A24] border border-[#D9CEBE] hover:bg-[#EFE9DF] text-xs font-bold transition cursor-pointer"
               >
                 <FileSpreadsheet className="w-4 h-4 text-[#0F3A24]" /> CSV
               </button>
 
               <button
-                onClick={() => exportToJSON(registrations)}
+                onClick={() => exportToJSON(filteredRegistrations)}
                 className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-[#FAF7F2] text-[#7A4F23] border border-[#D9CEBE] hover:bg-[#EFE9DF] text-xs font-bold transition cursor-pointer"
               >
                 <FileCode className="w-4 h-4 text-[#7A4F23]" /> JSON
               </button>
 
               <button
-                onClick={() => exportToPDF(registrations)}
+                onClick={() => exportToPDF(filteredRegistrations)}
                 className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-[#FAF7F2] text-[#0F3A24] border border-[#D9CEBE] hover:bg-[#EFE9DF] text-xs font-bold transition cursor-pointer"
               >
                 <FileText className="w-4 h-4 text-[#0F3A24]" /> PDF
@@ -296,14 +347,14 @@ export const AdminDashboard = ({ onClose }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E6DFD5] text-[#0F3A24]">
-                {registrations.length === 0 ? (
+                {filteredRegistrations.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="p-8 text-center text-[#7A4F23] font-bold">
-                      No team registrations found.
+                      {searchTerm ? `No registrations match "${searchTerm}"` : 'No team registrations found.'}
                     </td>
                   </tr>
                 ) : (
-                  registrations.map(reg => (
+                  filteredRegistrations.map(reg => (
                     <tr key={reg._id} className="hover:bg-[#FAF7F2]/60 transition">
                       
                       {/* Team & Leader */}
@@ -358,13 +409,13 @@ export const AdminDashboard = ({ onClose }) => {
                       <td className="p-4">
                         <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold ${
                           reg.paymentStatus === 'Verified' ? 'bg-emerald-50 text-emerald-800 border border-emerald-300' :
-                          reg.paymentStatus === 'Rejected' ? 'bg-rose-50 text-rose-800 border border-rose-300' :
+                          reg.paymentStatus === 'Rejected' ? 'bg-[#800E13]/10 text-[#800E13] border border-[#800E13]/30' :
                           reg.paymentStatus === 'Resubmit Requested' ? 'bg-amber-50 text-amber-800 border border-amber-300' :
                           'bg-sky-50 text-sky-800 border border-sky-300'
                         }`}>
                           {reg.paymentStatus === 'Verified' && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
                           {reg.paymentStatus === 'Pending' && <Clock className="w-3 h-3 text-sky-600" />}
-                          {reg.paymentStatus === 'Rejected' && <XCircle className="w-3 h-3 text-rose-600" />}
+                          {reg.paymentStatus === 'Rejected' && <XCircle className="w-3 h-3 text-[#800E13]" />}
                           {reg.paymentStatus}
                         </span>
                       </td>
@@ -382,7 +433,7 @@ export const AdminDashboard = ({ onClose }) => {
 
                           <button
                             onClick={() => handleUpdateStatus(reg._id, 'Rejected')}
-                            className="p-1.5 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition cursor-pointer"
+                            className="p-1.5 rounded-lg bg-[#800E13]/10 text-[#800E13] hover:bg-[#800E13]/20 border border-[#800E13]/30 transition cursor-pointer"
                             title="Reject Payment"
                           >
                             <X className="w-4 h-4" />
@@ -390,7 +441,7 @@ export const AdminDashboard = ({ onClose }) => {
 
                           <button
                             onClick={() => handleDelete(reg._id)}
-                            className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-rose-50 hover:text-rose-600 border border-slate-200 transition cursor-pointer"
+                            className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-[#800E13]/10 hover:text-[#800E13] border border-slate-200 transition cursor-pointer"
                             title="Delete Record"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -419,7 +470,7 @@ export const AdminDashboard = ({ onClose }) => {
           <div className="p-5 rounded-2xl bg-[#FAF7F2] border border-[#E6DFD5] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <h5 className="text-sm font-black text-[#0F3A24] flex items-center gap-2">
-                <Power className={`w-4 h-4 ${settingsForm.registrationOpen ? 'text-[#0F3A24]' : 'text-rose-600'}`} />
+                <Power className={`w-4 h-4 ${settingsForm.registrationOpen ? 'text-[#0F3A24]' : 'text-[#800E13]'}`} />
                 <span>Registration Portal Status</span>
               </h5>
               <p className="text-xs text-slate-600 font-medium mt-1">
@@ -435,7 +486,7 @@ export const AdminDashboard = ({ onClose }) => {
               className={`px-5 py-2.5 rounded-xl font-extrabold text-xs shadow-sm transition cursor-pointer flex items-center gap-2 ${
                 settingsForm.registrationOpen
                   ? 'bg-[#0F3A24] hover:bg-[#0A2B1A] text-white'
-                  : 'bg-rose-600 hover:bg-rose-700 text-white'
+                  : 'bg-[#800E13] hover:bg-[#600A0E] text-white'
               }`}
             >
               <Power className="w-4 h-4" />

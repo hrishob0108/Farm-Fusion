@@ -5,15 +5,28 @@ import { compressImage } from '../../utils/imageCompressor';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
-import { CreditCard, Copy, Check, FileCheck, Trash2, Loader2, ArrowLeft, ShieldCheck, Image as ImageIcon, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { CreditCard, Copy, Check, FileCheck, Trash2, Loader2, ArrowLeft, ShieldCheck, Image as ImageIcon, CheckCircle2, XCircle, AlertCircle, Clock } from 'lucide-react';
 
 export const PaymentSection = () => {
-  const { eventData, formData, setStep, setSubmittedRegistration, checkLiveRegistrationOpen } = useEvent();
+  const {
+    eventData,
+    formData,
+    setStep,
+    setSubmittedRegistration,
+    checkLiveRegistrationOpen,
+    activeReservation,
+    releaseSlot,
+    checkReservationStatus
+  } = useEvent();
 
   const registeredCount = eventData.registeredCount || 0;
   const maxTeams = eventData.maxTeams || 50;
-  const isLimitReached = registeredCount >= maxTeams;
-  const isRegistrationOpen = eventData.registrationOpen !== false && !isLimitReached;
+  const hasReservation = Boolean(activeReservation?.reservationId);
+  
+  // Allow payment submission for reservation holders as long as the admin portal is open
+  const isPortalOpen = eventData.isPortalOpen !== false;
+  const isRegistrationOpen = isPortalOpen || hasReservation;
+  const showClosedBanner = !isPortalOpen && !hasReservation;
   
   const [transactionId, setTransactionId] = useState(formData.transactionId || '');
   const [checkingTxn, setCheckingTxn] = useState(false);
@@ -23,6 +36,53 @@ export const PaymentSection = () => {
   const [screenshotPreview, setScreenshotPreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // 5-Minute Reservation Countdown Timer State
+  const [timeLeft, setTimeLeft] = useState(300);
+
+  useEffect(() => {
+    if (!activeReservation?.expiresAt) return;
+
+    const updateTimer = () => {
+      const remaining = Math.max(0, Math.floor((new Date(activeReservation.expiresAt) - Date.now()) / 1000));
+      setTimeLeft(remaining);
+
+      if (remaining <= 0) {
+        toast.error('⏰ Your 5-minute reservation slot has expired. Please fill out the registration form again to reserve a new slot.');
+        releaseSlot();
+        setStep(1);
+      }
+    };
+
+    updateTimer();
+    const timer = setInterval(updateTimer, 1000);
+    return () => clearInterval(timer);
+  }, [activeReservation]);
+
+  // Initial reservation validity check on mount
+  useEffect(() => {
+    let isMounted = true;
+    const verifyReservation = async () => {
+      if (activeReservation?.reservationId) {
+        const res = await checkReservationStatus();
+        if (isMounted && !res.valid) {
+          toast.error('Your reservation slot has expired or is invalid. Please fill out the registration form again.');
+          setStep(1);
+        }
+      }
+    };
+    verifyReservation();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const payment = eventData.payment || {};
   const upiId = (payment.upiId && typeof payment.upiId === 'string' && !payment.upiId.includes('undefined')) ? payment.upiId : 'farmfusionai@okaxis';
@@ -113,14 +173,23 @@ export const PaymentSection = () => {
   const handleFinalSubmit = async (e) => {
     e.preventDefault();
 
-    const status = await checkLiveRegistrationOpen();
-    if (!status.isOpen) {
-      toast.error(
-        status.isLimit
-          ? 'Registrations are CLOSED because the maximum team limit has been reached.'
-          : 'Registrations are currently CLOSED by the event organizers.'
-      );
-      return;
+    if (activeReservation?.reservationId) {
+      const res = await checkReservationStatus();
+      if (!res.valid) {
+        toast.error('Your 5-minute reservation slot has expired. Please fill out the registration form again.');
+        setStep(1);
+        return;
+      }
+    } else {
+      const status = await checkLiveRegistrationOpen();
+      if (!status.isOpen) {
+        toast.error(
+          status.isLimit
+            ? 'Registrations are CLOSED because the maximum team limit has been reached.'
+            : 'Registrations are currently CLOSED by the event organizers.'
+        );
+        return;
+      }
     }
 
     if (!transactionId || transactionId.trim().length < 6) {
@@ -151,8 +220,9 @@ export const PaymentSection = () => {
       payload.append('teamName', formData.teamName);
       payload.append('leader', JSON.stringify(formData.leader));
       payload.append('members', JSON.stringify(formData.members || []));
-
-
+      if (activeReservation?.reservationId) {
+        payload.append('reservationId', activeReservation.reservationId);
+      }
       payload.append('transactionId', transactionId.trim());
       
       const fileName = screenshotFile.name || 'screenshot.png';
@@ -164,7 +234,7 @@ export const PaymentSection = () => {
 
       if (res.data.success) {
         toast.dismiss(loadingToast);
-        toast.success('🎉 Registration submitted successfully!');
+        toast.success('🎉 Registration submitted & slot permanently confirmed!');
         setSubmittedRegistration(res.data.registration);
         setStep(4);
       }
@@ -174,6 +244,13 @@ export const PaymentSection = () => {
       toast.error(message);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleBackToForm = async () => {
+    if (window.confirm('Going back will release your temporary 5-minute slot reservation. Are you sure?')) {
+      await releaseSlot();
+      setStep(2);
     }
   };
 
@@ -189,14 +266,43 @@ export const PaymentSection = () => {
       <div className="bg-white border border-[#E6DFD5] rounded-2xl p-6 sm:p-10 shadow-md">
         
         {/* Closed Banner */}
-        {!isRegistrationOpen && (
-          <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm font-bold flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+        {showClosedBanner && (
+          <div className="mb-6 p-4 rounded-xl bg-[#800E13]/10 border border-[#800E13]/30 text-[#800E13] text-xs sm:text-sm font-bold flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-[#800E13] shrink-0" />
             <span>
-              {isLimitReached
+              {registeredCount >= maxTeams
                 ? `Registrations are CLOSED. Maximum allowed team limit (${maxTeams} teams) has been reached.`
                 : 'Registrations are currently CLOSED. Submission buttons are disabled.'}
             </span>
+          </div>
+        )}
+
+        {/* 5-Minute Temporary Reservation Countdown Banner */}
+        {activeReservation && (
+          <div className={`mb-6 p-4 rounded-xl border flex flex-col sm:flex-row items-center justify-between gap-3 ${
+            timeLeft < 60 ? 'bg-[#800E13]/10 border-[#800E13]/40 text-[#800E13]' : 'bg-[#FAF7F2] border-[#E6DFD5] text-[#0F3A24]'
+          }`}>
+            <div className="flex items-center gap-3 text-left">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 ${
+                timeLeft < 60 ? 'bg-[#800E13] text-white animate-pulse' : 'bg-[#0F3A24] text-[#D4A373]'
+              }`}>
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs font-extrabold uppercase tracking-wide flex items-center gap-1.5">
+                  Slot Reserved Temporarily ({activeReservation.teamName || formData?.teamName})
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Slot Locked" />
+                </p>
+                <p className="text-xs font-medium text-slate-600 mt-0.5">
+                  Complete your payment within 5 minutes to confirm your registration slot.
+                </p>
+              </div>
+            </div>
+            <div className={`text-xl sm:text-2xl font-mono font-black px-3.5 py-1.5 rounded-lg border text-center shrink-0 ${
+              timeLeft < 60 ? 'bg-[#800E13] text-white border-[#600A0E] animate-bounce' : 'bg-white text-[#0F3A24] border-[#D9CEBE]'
+            }`}>
+              {formatTime(timeLeft)}
+            </div>
           </div>
         )}
 
@@ -259,7 +365,7 @@ export const PaymentSection = () => {
             
             <div>
               <label className="block text-xs font-bold text-[#0F3A24] uppercase mb-1">
-                Transaction ID / UPI Ref No <span className="text-rose-500">*</span>
+                Transaction ID / UPI Ref No <span className="text-[#800E13]">*</span>
               </label>
 
               <div className="relative">
@@ -281,13 +387,13 @@ export const PaymentSection = () => {
               </div>
 
               <p className="text-[11px] font-bold text-[#7A4F23] mt-1">
-                Note: Enter the Transaction ID or UTR number only. <span className="text-rose-600 font-black">Do not enter</span> a UPI ID.
+                Note: Enter the Transaction ID or UTR number only. <span className="text-[#800E13] font-black">Do not enter</span> a UPI ID.
               </p>
 
               {/* Live Duplicate Transaction ID Indicator */}
               {txnAvailability && !checkingTxn && (
                 <div className={`flex items-center gap-1.5 text-xs font-bold mt-1.5 ${
-                  txnAvailability.isDuplicate ? 'text-rose-600' : 'text-[#0F3A24]'
+                  txnAvailability.isDuplicate ? 'text-[#800E13]' : 'text-[#0F3A24]'
                 }`}>
                   {txnAvailability.isDuplicate ? <XCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4 text-[#0F3A24]" />}
                   <span>{txnAvailability.message}</span>
@@ -297,7 +403,7 @@ export const PaymentSection = () => {
 
             <div>
               <label className="block text-xs font-bold text-[#0F3A24] uppercase mb-1">
-                Upload Payment Screenshot <span className="text-rose-500">*</span>
+                Upload Payment Screenshot <span className="text-[#800E13]">*</span>
               </label>
 
               {!screenshotFile ? (
@@ -335,7 +441,7 @@ export const PaymentSection = () => {
                     <button
                       type="button"
                       onClick={removeFile}
-                      className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-md cursor-pointer"
+                      className="p-1.5 text-[#800E13] hover:bg-[#800E13]/10 rounded-md cursor-pointer"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -347,7 +453,7 @@ export const PaymentSection = () => {
             <div className="pt-4 border-t border-[#E6DFD5] flex items-center justify-between gap-3">
               <button
                 type="button"
-                onClick={() => setStep(2)}
+                onClick={handleBackToForm}
                 disabled={isSubmitting}
                 className="px-4 py-2.5 rounded-lg border border-[#D9CEBE] text-[#0F3A24] text-xs font-bold hover:bg-[#FAF7F2] cursor-pointer"
               >
@@ -360,7 +466,7 @@ export const PaymentSection = () => {
                 className={`px-6 py-2.5 rounded-xl font-extrabold text-sm shadow-md flex items-center justify-center gap-2 transition cursor-pointer ${
                   isRegistrationOpen && !isSubmitting
                     ? 'bg-[#0F3A24] hover:bg-[#0A2B1A] text-white'
-                    : 'bg-rose-700 hover:bg-rose-800 text-white'
+                    : 'bg-[#800E13] hover:bg-[#600A0E] text-white'
                 }`}
               >
                 {isSubmitting ? (

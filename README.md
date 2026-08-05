@@ -1,6 +1,6 @@
 # 🌱 Farm Fusion AI - Full Stack Event Registration Platform
 
-**Farm Fusion AI** is a production-ready, modern, premium full-stack Event Registration Platform built for a national-level AI + Agriculture hackathon.
+**Farm Fusion AI** is a production-ready, modern, premium full-stack Event Registration Platform built for the FarmFusion AI + Agriculture event.
 
 It features an Apple-quality glassmorphism user interface, seamless single-route navigation (`/`), real-time countdown timer, dynamic team member collapsible accordions, client-side PDF registration receipt generation, instant UPI/QR payment upload, and a feature-complete JWT-authenticated Admin Portal with analytics, status management, and CSV/Excel/PDF data exports.
 

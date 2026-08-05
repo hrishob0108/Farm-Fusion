@@ -6,7 +6,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import {
   Users, CheckCircle2, Clock, XCircle, Search,
-  FileSpreadsheet, FileText, FileCode, Download, Trash2, RefreshCw, Eye, X, LogOut,
+  FileSpreadsheet, FileText, FileCode, Download, RefreshCw, Eye, X, LogOut,
   Sliders, Activity, Check, Power, Mail, Phone, QrCode, MessageSquare, Link as LinkIcon
 } from 'lucide-react';
 
@@ -105,20 +105,6 @@ export const AdminDashboard = ({ onClose }) => {
       }
     } catch (error) {
       toast.error('Failed to update payment status');
-    }
-  };
-
-  // Delete Registration Handler
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this registration record?')) return;
-    try {
-      const res = await axios.delete(`/api/admin/registration/${id}`);
-      if (res.data.success) {
-        toast.success('Registration deleted');
-        loadData();
-      }
-    } catch (error) {
-      toast.error('Failed to delete registration');
     }
   };
 
@@ -488,14 +474,6 @@ export const AdminDashboard = ({ onClose }) => {
                             title="Reject Payment"
                           >
                             <X className="w-4 h-4" />
-                          </button>
-
-                          <button
-                            onClick={() => handleDelete(reg._id)}
-                            className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-[#800E13]/10 hover:text-[#800E13] border border-slate-200 transition cursor-pointer"
-                            title="Delete Record"
-                          >
-                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </td>

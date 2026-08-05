@@ -126,7 +126,7 @@ export const generateRegistrationReceipt = async (registration) => {
   drawKeyValue(doc, 'Registered On:', regDate, curY, 1);
   curY += 8;
 
-  drawKeyValue(doc, 'Event:', 'FarmFusion Hackathon', curY, 0);
+  drawKeyValue(doc, 'Event:', 'FarmFusion', curY, 0);
   curY += 12;
 
   // ── Section 2: Team Leader ─────────────────────────────────────────────────
@@ -251,7 +251,7 @@ export const generateRegistrationReceipt = async (registration) => {
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
   doc.text(
-    'This is an official computer-generated registration pass issued for FarmFusion Hackathon.',
+    'This is an official computer-generated registration pass issued for FarmFusion.',
     PAGE_W / 2, curY, { align: 'center' }
   );
   doc.text(

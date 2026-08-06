@@ -42,6 +42,13 @@ const registrationSchema = new mongoose.Schema({
   rejectionReason: {
     type: String,
     default: ''
+  },
+  emailSent: {
+    type: Boolean,
+    default: false
+  },
+  emailSentAt: {
+    type: Date
   }
 }, {
   timestamps: true

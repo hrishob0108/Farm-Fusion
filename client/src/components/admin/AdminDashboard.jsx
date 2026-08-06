@@ -101,11 +101,29 @@ export const AdminDashboard = ({ onClose }) => {
     try {
       const res = await axios.put('/api/admin/payment-status', { id, paymentStatus, rejectionReason });
       if (res.data.success) {
-        toast.success(`Payment status updated to ${paymentStatus}`);
+        toast.success(`Payment status updated to ${paymentStatus}. Email notification dispatched!`);
         loadData();
       }
     } catch (error) {
       toast.error('Failed to update payment status');
+    }
+  };
+
+  // Manually Resend Verification Email to Team Leader & Teammates
+  const handleResendEmail = async (id, teamName) => {
+    const loadingToast = toast.loading(`Sending verification email to Team ${teamName}...`);
+    try {
+      const res = await axios.post('/api/admin/resend-email', { id });
+      toast.dismiss(loadingToast);
+      if (res.data.success) {
+        toast.success(`Verification email successfully sent to Team "${teamName}" leader & teammates!`);
+        loadData();
+      } else {
+        toast.error(res.data.message || 'Failed to send email');
+      }
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      toast.error(error.response?.data?.message || 'Failed to send verification email');
     }
   };
 
@@ -461,6 +479,14 @@ export const AdminDashboard = ({ onClose }) => {
                           {reg.paymentStatus === 'Rejected' && <XCircle className="w-3 h-3 text-[#800E13]" />}
                           {reg.paymentStatus}
                         </span>
+
+                        {reg.emailSent && (
+                          <div className="mt-1">
+                            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200" title={`Email sent on ${new Date(reg.emailSentAt).toLocaleString()}`}>
+                              <Mail className="w-3 h-3 text-emerald-600" /> Email Sent
+                            </span>
+                          </div>
+                        )}
                       </td>
 
                       {/* Actions */}
@@ -469,9 +495,17 @@ export const AdminDashboard = ({ onClose }) => {
                           <button
                             onClick={() => handleUpdateStatus(reg._id, 'Verified')}
                             className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition cursor-pointer"
-                            title="Verify Payment"
+                            title="Verify Payment & Send Email to Team"
                           >
                             <Check className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            onClick={() => handleResendEmail(reg._id, reg.teamName)}
+                            className="p-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 transition cursor-pointer"
+                            title="Resend Verification Email to Team Leader & Teammates"
+                          >
+                            <Mail className="w-4 h-4" />
                           </button>
 
                           <button

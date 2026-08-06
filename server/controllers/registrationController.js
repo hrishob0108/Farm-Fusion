@@ -2,6 +2,7 @@ import { Registration } from '../models/Registration.js';
 import { Event } from '../models/Event.js';
 import { Reservation } from '../models/Reservation.js';
 import { uploadToCloudinary } from '../services/cloudinaryService.js';
+import { sendPaymentStatusEmail, sendTeamVerificationEmail } from '../services/emailService.js';
 
 // POST /api/register - Creates team registration strictly in MongoDB
 export const createRegistration = async (req, res, next) => {
@@ -260,11 +261,53 @@ export const updatePaymentStatus = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Registration record not found in database' });
     }
 
+    // Trigger email notification asynchronously to team leader + all team mates
+    sendPaymentStatusEmail(updatedRecord, paymentStatus, rejectionReason || '')
+      .then(result => {
+        console.log(`[AdminController] Payment status email triggered for Team "${updatedRecord.teamName}":`, result);
+      })
+      .catch(err => {
+        console.error(`[AdminController] Error sending payment status email:`, err.message);
+      });
+
     res.json({
       success: true,
-      message: `Payment status updated to "${paymentStatus}"`,
+      message: `Payment status updated to "${paymentStatus}". Email notification dispatched to team.`,
       registration: updatedRecord
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// POST /api/admin/resend-email - Manually resends verification email to team leader and teammates
+export const resendVerificationEmail = async (req, res, next) => {
+  try {
+    const { id } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ success: false, message: 'Registration ID is required' });
+    }
+
+    const registration = await Registration.findById(id);
+    if (!registration) {
+      return res.status(404).json({ success: false, message: 'Registration record not found' });
+    }
+
+    const emailResult = await sendTeamVerificationEmail(registration);
+
+    if (emailResult.success) {
+      return res.json({
+        success: true,
+        message: `Verification email successfully sent to Team "${registration.teamName}" leader and team mates!`,
+        provider: emailResult.provider
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        message: `Failed to send email: ${emailResult.error || 'Unknown error'}`
+      });
+    }
   } catch (error) {
     next(error);
   }

@@ -24,8 +24,8 @@ export const adminLogin = async (req, res, next) => {
       isAdminValid = await bcrypt.compare(password, admin.passwordHash);
     }
 
-    // Check env fallback if admin DB record is not seeded yet
-    if (!isAdminValid && username === envUsername && (password === envPassword || password === 'admin1289')) {
+    // Check env values directly from process.env only
+    if (!isAdminValid && envUsername && envPassword && username === envUsername && password === envPassword) {
       isAdminValid = true;
     }
 

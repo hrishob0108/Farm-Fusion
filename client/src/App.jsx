@@ -41,6 +41,8 @@ const MainContent = () => {
 };
 
 export default function App() {
+  const secretCode = (import.meta.env.VITE_SECRET_CODE || import.meta.env.secretcode || '').trim();
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -51,8 +53,10 @@ export default function App() {
               {/* Main Registration Flow */}
               <Route path="/" element={<MainContent />} />
               
-              {/* Admin Portal Route: /hero */}
-              <Route path="/hero/farmfusion/439nc0br7c5863934932n4b32874376n34fr4rref3f43f442343246r34r32bt4rc3268rct7crb632br348r734832b4" element={<AdminPage />} />
+              {/* Admin Portal Route: Secret Code from .env is MANDATORY */}
+              {secretCode && (
+                <Route path={`/hero/farmfusion/${secretCode}`} element={<AdminPage />} />
+              )}
               
               {/* Catch-all fallback */}
               <Route path="*" element={<MainContent />} />

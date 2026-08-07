@@ -3,14 +3,14 @@ import { useAuth } from '../../context/AuthContext';
 import { useEvent } from '../../context/EventContext';
 import { AdminDashboard } from './AdminDashboard';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, Lock, User, X, KeyRound } from 'lucide-react';
+import { ShieldCheck, Lock, User, X } from 'lucide-react';
 
 export const AdminModal = () => {
   const { isAdminOpen, setIsAdminOpen } = useEvent();
   const { isAuthenticated, login } = useAuth();
 
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin1289');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   if (!isAdminOpen) return null;
@@ -79,12 +79,6 @@ export const AdminModal = () => {
                       required
                     />
                   </div>
-                </div>
-
-                {/* Default Credentials Hint Box */}
-                <div className="p-3 rounded-xl bg-[#FAF7F2] border border-[#E6DFD5] text-[11px] text-[#7A4F23] font-bold flex items-center gap-2">
-                  <KeyRound className="w-4 h-4 text-[#0F3A24] shrink-0" />
-                  <span>Default Admin: <strong className="text-[#0F3A24]">admin</strong> / <strong className="text-[#0F3A24]">admin1289</strong></span>
                 </div>
 
                 <button

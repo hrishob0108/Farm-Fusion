@@ -41,18 +41,20 @@ const seed = async () => {
       console.log('[Seed] Default Event created.');
     }
 
-    // Seed Admin
-    const adminUsername = process.env.ADMIN_USERNAME || 'admin';
-    const adminPassword = process.env.ADMIN_PASSWORD || 'admin1289';
+    // Seed Admin from ENV
+    const adminUsername = process.env.ADMIN_USERNAME?.trim();
+    const adminPassword = process.env.ADMIN_PASSWORD?.trim();
 
-    const existingAdmin = await Admin.findOne({ username: adminUsername });
-    if (!existingAdmin) {
-      const passwordHash = await bcrypt.hash(adminPassword, 10);
-      await Admin.create({
-        username: adminUsername,
-        passwordHash
-      });
-      console.log(`[Seed] Default Admin user "${adminUsername}" created.`);
+    if (adminUsername && adminPassword) {
+      const existingAdmin = await Admin.findOne({ username: adminUsername });
+      if (!existingAdmin) {
+        const passwordHash = await bcrypt.hash(adminPassword, 10);
+        await Admin.create({
+          username: adminUsername,
+          passwordHash
+        });
+        console.log(`[Seed] Admin user "${adminUsername}" created from ENV.`);
+      }
     }
 
     console.log('[Seed] Database seed completed successfully!');

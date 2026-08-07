@@ -7,7 +7,17 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 
 export const RegistrationForm = () => {
-  const { eventData, formData, setFormData, setStep, checkLiveRegistrationOpen, reserveSlot } = useEvent();
+  const { eventData, formData, setFormData, setStep, checkLiveRegistrationOpen, reserveSlot, fetchEventDetails } = useEvent();
+
+  // Auto-request registration status & available slots every 5 seconds live without page reload
+  useEffect(() => {
+    fetchEventDetails();
+    const interval = setInterval(() => {
+      fetchEventDetails();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [fetchEventDetails]);
 
   const registeredCount = eventData.registeredCount || 0;
   const maxTeams = eventData.maxTeams || 50;

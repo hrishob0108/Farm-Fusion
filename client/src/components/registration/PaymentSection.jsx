@@ -16,8 +16,19 @@ export const PaymentSection = () => {
     checkLiveRegistrationOpen,
     activeReservation,
     releaseSlot,
-    checkReservationStatus
+    checkReservationStatus,
+    fetchEventDetails
   } = useEvent();
+
+  // Poll live event details and portal status every 5 seconds without page reload
+  useEffect(() => {
+    fetchEventDetails();
+    const interval = setInterval(() => {
+      fetchEventDetails();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [fetchEventDetails]);
 
   const registeredCount = eventData.registeredCount || 0;
   const maxTeams = eventData.maxTeams || 50;
@@ -40,7 +51,7 @@ export const PaymentSection = () => {
   // 5-Minute Reservation Countdown Timer State
   const [timeLeft, setTimeLeft] = useState(300);
 
-  // Poll Payment QR endpoint (/api/event/qr) every 1 second
+  // Poll Payment QR endpoint (/api/event/qr) every 3 seconds
   const [liveQrData, setLiveQrData] = useState(null);
 
   useEffect(() => {

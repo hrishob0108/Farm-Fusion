@@ -28,16 +28,35 @@ export const AdminDashboard = ({ onClose }) => {
 
   // Event Settings Form State
   const [settingsForm, setSettingsForm] = useState(eventData || {});
-  const [settingsInitialized, setSettingsInitialized] = useState(false);
+  const [isFormDirty, setIsFormDirty] = useState(false);
   const [qrFile, setQrFile] = useState(null);
 
-  // Populate settingsForm ONCE on initial load without overwriting admin's active typing on background polling
+  // Fetch fresh event details directly from MongoDB on mount to populate settings form with real DB values
   useEffect(() => {
-    if (!settingsInitialized && eventData && Object.keys(eventData).length > 0) {
+    let isMounted = true;
+    const fetchLiveEventSettings = async () => {
+      try {
+        const res = await axios.get('/api/event');
+        if (isMounted && res.data) {
+          setEventData(res.data);
+          setSettingsForm(res.data);
+          setIsFormDirty(false);
+        }
+      } catch (err) {
+        console.warn('[AdminDashboard] Live settings fetch error:', err.message);
+      }
+    };
+
+    fetchLiveEventSettings();
+    return () => { isMounted = false; };
+  }, []);
+
+  // Synchronize settingsForm with eventData from EventContext whenever new data arrives from backend
+  useEffect(() => {
+    if (eventData && Object.keys(eventData).length > 0 && !isFormDirty) {
       setSettingsForm(eventData);
-      setSettingsInitialized(true);
     }
-  }, [eventData, settingsInitialized]);
+  }, [eventData, isFormDirty]);
 
   // Debounce search input by 300ms to eliminate typing lag and avoid excessive API requests
   useEffect(() => {
@@ -47,10 +66,10 @@ export const AdminDashboard = ({ onClose }) => {
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
-  // Load Registrations Data strictly from Backend
-  const loadData = async (signal) => {
+  // Load Registrations Data strictly from Backend (with silent background polling support)
+  const loadData = async (signal, isSilent = false) => {
     try {
-      setLoading(true);
+      if (!isSilent) setLoading(true);
       const regRes = await axios.get('/api/admin/registrations', {
         params: { search: debouncedSearchTerm, status: statusFilter },
         signal: signal instanceof AbortSignal ? signal : undefined
@@ -63,7 +82,7 @@ export const AdminDashboard = ({ onClose }) => {
         console.warn('[AdminDashboard] Registration fetch fallback active:', error.message);
       }
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
@@ -87,10 +106,16 @@ export const AdminDashboard = ({ onClose }) => {
 
   useEffect(() => {
     const controller = new AbortController();
-    loadData(controller.signal);
+    loadData(controller.signal, false);
+
+    // Silent background auto-refresh every 10 seconds for live registration updates
+    const interval = setInterval(() => {
+      loadData(undefined, true);
+    }, 10000);
 
     return () => {
       controller.abort();
+      clearInterval(interval);
     };
   }, [debouncedSearchTerm, statusFilter]);
 
@@ -124,7 +149,7 @@ export const AdminDashboard = ({ onClose }) => {
       const res = await axios.put('/api/admin/payment-status', { id, paymentStatus, rejectionReason });
       if (res.data.success) {
         toast.success(`Payment status updated to ${paymentStatus}. Email notification dispatched!`);
-        loadData();
+        loadData(undefined, true);
       }
     } catch (error) {
       toast.error('Failed to update payment status');
@@ -139,7 +164,7 @@ export const AdminDashboard = ({ onClose }) => {
       toast.dismiss(loadingToast);
       if (res.data.success) {
         toast.success(`Verification email successfully sent to Team "${teamName}" leader & teammates!`);
-        loadData();
+        loadData(undefined, true);
       } else {
         toast.error(res.data.message || 'Failed to send email');
       }
@@ -151,8 +176,9 @@ export const AdminDashboard = ({ onClose }) => {
 
   // Dedicated Instant 1-Click Toggle for Registration Open / Close Status in MongoDB
   const handleToggleRegistrationOpen = async () => {
-    const newStatus = !settingsForm.registrationOpen;
-    setSettingsForm(prev => ({ ...prev, registrationOpen: newStatus }));
+    const currentStatus = settingsForm.isPortalOpen !== undefined ? settingsForm.isPortalOpen : (settingsForm.registrationOpen !== false);
+    const newStatus = !currentStatus;
+    setSettingsForm(prev => ({ ...prev, isPortalOpen: newStatus, registrationOpen: newStatus }));
 
     const loadingToast = toast.loading(`Updating MongoDB status to ${newStatus ? 'OPEN' : 'CLOSED'}...`);
 
@@ -167,7 +193,12 @@ export const AdminDashboard = ({ onClose }) => {
       if (res.data.success) {
         toast.dismiss(loadingToast);
         toast.success(`Registration status updated in DB: ${newStatus ? 'OPEN' : 'CLOSED'}`);
-        fetchEventDetails(); // Instantly update global context state
+        const fresh = await axios.get('/api/event');
+        if (fresh.data) {
+          setEventData(fresh.data);
+          setSettingsForm(fresh.data);
+          setIsFormDirty(false);
+        }
       }
     } catch (error) {
       toast.dismiss(loadingToast);
@@ -181,26 +212,29 @@ export const AdminDashboard = ({ onClose }) => {
     const loadingToast = toast.loading('Saving event settings to DB...');
 
     try {
+      const currentPortalOpen = settingsForm.isPortalOpen !== undefined ? settingsForm.isPortalOpen : (settingsForm.registrationOpen !== false);
+
       const payload = new FormData();
       payload.append('eventName', settingsForm.eventName || 'FarmFusion');
-      payload.append('tagline', settingsForm.tagline || 'Where AI Meets Agriculture');
+      payload.append('tagline', settingsForm.tagline !== undefined ? settingsForm.tagline : 'Where AI Meets Agriculture');
       payload.append('eventDate', settingsForm.eventDate || new Date().toISOString());
-      payload.append('registrationOpen', settingsForm.registrationOpen !== false);
+      payload.append('registrationOpen', currentPortalOpen);
       payload.append('minMembers', Number(settingsForm.minMembers) || 2);
       payload.append('maxMembers', Number(settingsForm.maxMembers) || 4);
       payload.append('maxTeams', Number(settingsForm.maxTeams) || 50);
 
       const paymentObj = {
-        upiId: settingsForm.payment?.upiId || 'farmfusionai@okaxis',
-        amount: Number(settingsForm.payment?.amount) || 499,
-        accountHolder: settingsForm.payment?.accountHolder || 'FarmFusion Org',
-        qrImage: settingsForm.payment?.qrImage || 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=farmfusionai@okaxis'
+        upiId: settingsForm.payment?.upiId !== undefined ? settingsForm.payment.upiId : '',
+        amount: settingsForm.payment?.amount !== undefined ? Number(settingsForm.payment.amount) : 0,
+        accountHolder: settingsForm.payment?.accountHolder !== undefined ? settingsForm.payment.accountHolder : '',
+        qrImage: settingsForm.payment?.qrImage || ''
       };
       payload.append('payment', JSON.stringify(paymentObj));
 
       const whatsappObj = {
         group: settingsForm.whatsapp?.group || '',
-        discussion: settingsForm.whatsapp?.discussion || ''
+        discussion: settingsForm.whatsapp?.discussion || '',
+        channel: settingsForm.whatsapp?.channel || ''
       };
       payload.append('whatsapp', JSON.stringify(whatsappObj));
 
@@ -215,7 +249,12 @@ export const AdminDashboard = ({ onClose }) => {
       if (res.data.success) {
         toast.dismiss(loadingToast);
         toast.success('Payment, WhatsApp & Event settings updated in MongoDB!');
-        fetchEventDetails();
+        const fresh = await axios.get('/api/event');
+        if (fresh.data) {
+          setEventData(fresh.data);
+          setSettingsForm(fresh.data);
+          setIsFormDirty(false);
+        }
       }
     } catch (error) {
       toast.dismiss(loadingToast);
@@ -569,32 +608,37 @@ export const AdminDashboard = ({ onClose }) => {
           </div>
 
           {/* Dedicated Instant 1-Click Registration Status Switch for MongoDB */}
-          <div className="p-5 rounded-2xl bg-[#FAF7F2] border border-[#E6DFD5] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <h5 className="text-sm font-black text-[#0F3A24] flex items-center gap-2">
-                <Power className={`w-4 h-4 ${settingsForm.registrationOpen ? 'text-[#0F3A24]' : 'text-[#800E13]'}`} />
-                <span>Registration Portal Status</span>
-              </h5>
-              <p className="text-xs text-slate-600 font-medium mt-1">
-                {settingsForm.registrationOpen
-                  ? 'Currently OPEN: Attendees can fill form & register.'
-                  : 'Currently CLOSED: All registration buttons on site are disabled and unclickable.'}
-              </p>
-            </div>
-            
-            <button
-              type="button"
-              onClick={handleToggleRegistrationOpen}
-              className={`px-5 py-2.5 rounded-xl font-extrabold text-xs shadow-sm transition cursor-pointer flex items-center gap-2 ${
-                settingsForm.registrationOpen
-                  ? 'bg-[#0F3A24] hover:bg-[#0A2B1A] text-white'
-                  : 'bg-[#800E13] hover:bg-[#600A0E] text-white'
-              }`}
-            >
-              <Power className="w-4 h-4" />
-              <span>{settingsForm.registrationOpen ? 'Status: OPEN (ON)' : 'Status: CLOSED (OFF)'}</span>
-            </button>
-          </div>
+          {(() => {
+            const isPortalOpen = settingsForm.isPortalOpen !== undefined ? settingsForm.isPortalOpen : (settingsForm.registrationOpen !== false);
+            return (
+              <div className="p-5 rounded-2xl bg-[#FAF7F2] border border-[#E6DFD5] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h5 className="text-sm font-black text-[#0F3A24] flex items-center gap-2">
+                    <Power className={`w-4 h-4 ${isPortalOpen ? 'text-[#0F3A24]' : 'text-[#800E13]'}`} />
+                    <span>Registration Portal Status</span>
+                  </h5>
+                  <p className="text-xs text-slate-600 font-medium mt-1">
+                    {isPortalOpen
+                      ? 'Currently OPEN: Attendees can fill form & register.'
+                      : 'Currently CLOSED: All registration buttons on site are disabled and unclickable.'}
+                  </p>
+                </div>
+                
+                <button
+                  type="button"
+                  onClick={handleToggleRegistrationOpen}
+                  className={`px-5 py-2.5 rounded-xl font-extrabold text-xs shadow-sm transition cursor-pointer flex items-center gap-2 ${
+                    isPortalOpen
+                      ? 'bg-[#0F3A24] hover:bg-[#0A2B1A] text-white'
+                      : 'bg-[#800E13] hover:bg-[#600A0E] text-white'
+                  }`}
+                >
+                  <Power className="w-4 h-4" />
+                  <span>{isPortalOpen ? 'Status: OPEN (ON)' : 'Status: CLOSED (OFF)'}</span>
+                </button>
+              </div>
+            );
+          })()}
 
           {/* Event Basic Configuration */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -603,7 +647,7 @@ export const AdminDashboard = ({ onClose }) => {
               <input
                 type="text"
                 value={settingsForm.eventName || ''}
-                onChange={(e) => setSettingsForm({ ...settingsForm, eventName: e.target.value })}
+                onChange={(e) => { setIsFormDirty(true); setSettingsForm({ ...settingsForm, eventName: e.target.value }); }}
                 className="w-full px-3.5 py-2.5 rounded-lg border border-[#D9CEBE] bg-[#FAF7F2]/50 text-[#0F3A24] text-xs font-bold focus:outline-none focus:border-[#0F3A24]"
               />
             </div>
@@ -613,7 +657,7 @@ export const AdminDashboard = ({ onClose }) => {
               <input
                 type="text"
                 value={settingsForm.tagline || ''}
-                onChange={(e) => setSettingsForm({ ...settingsForm, tagline: e.target.value })}
+                onChange={(e) => { setIsFormDirty(true); setSettingsForm({ ...settingsForm, tagline: e.target.value }); }}
                 className="w-full px-3.5 py-2.5 rounded-lg border border-[#D9CEBE] bg-[#FAF7F2]/50 text-[#0F3A24] text-xs font-bold focus:outline-none focus:border-[#0F3A24]"
               />
             </div>
@@ -623,7 +667,7 @@ export const AdminDashboard = ({ onClose }) => {
               <input
                 type="datetime-local"
                 value={settingsForm.eventDate ? new Date(settingsForm.eventDate).toISOString().slice(0, 16) : ''}
-                onChange={(e) => setSettingsForm({ ...settingsForm, eventDate: e.target.value })}
+                onChange={(e) => { setIsFormDirty(true); setSettingsForm({ ...settingsForm, eventDate: e.target.value }); }}
                 className="w-full px-3.5 py-2.5 rounded-lg border border-[#D9CEBE] bg-[#FAF7F2]/50 text-[#0F3A24] text-xs font-bold focus:outline-none focus:border-[#0F3A24]"
               />
             </div>
@@ -633,8 +677,8 @@ export const AdminDashboard = ({ onClose }) => {
               <input
                 type="text"
                 inputMode="numeric"
-                value={settingsForm.maxTeams !== undefined ? settingsForm.maxTeams : 50}
-                onChange={(e) => setSettingsForm({ ...settingsForm, maxTeams: e.target.value.replace(/\D/g, '') })}
+                value={settingsForm.maxTeams !== undefined ? settingsForm.maxTeams : ''}
+                onChange={(e) => { setIsFormDirty(true); setSettingsForm({ ...settingsForm, maxTeams: e.target.value.replace(/\D/g, '') }); }}
                 className="w-full px-3.5 py-2.5 rounded-lg border border-[#D9CEBE] bg-[#FAF7F2]/50 text-[#0F3A24] text-xs font-bold focus:outline-none focus:border-[#0F3A24]"
               />
             </div>
@@ -644,8 +688,8 @@ export const AdminDashboard = ({ onClose }) => {
               <input
                 type="text"
                 inputMode="numeric"
-                value={settingsForm.minMembers !== undefined ? settingsForm.minMembers : 2}
-                onChange={(e) => setSettingsForm({ ...settingsForm, minMembers: e.target.value.replace(/\D/g, '') })}
+                value={settingsForm.minMembers !== undefined ? settingsForm.minMembers : ''}
+                onChange={(e) => { setIsFormDirty(true); setSettingsForm({ ...settingsForm, minMembers: e.target.value.replace(/\D/g, '') }); }}
                 className="w-full px-3.5 py-2.5 rounded-lg border border-[#D9CEBE] bg-[#FAF7F2]/50 text-[#0F3A24] text-xs font-bold focus:outline-none focus:border-[#0F3A24]"
               />
             </div>
@@ -655,8 +699,8 @@ export const AdminDashboard = ({ onClose }) => {
               <input
                 type="text"
                 inputMode="numeric"
-                value={settingsForm.maxMembers !== undefined ? settingsForm.maxMembers : 4}
-                onChange={(e) => setSettingsForm({ ...settingsForm, maxMembers: e.target.value.replace(/\D/g, '') })}
+                value={settingsForm.maxMembers !== undefined ? settingsForm.maxMembers : ''}
+                onChange={(e) => { setIsFormDirty(true); setSettingsForm({ ...settingsForm, maxMembers: e.target.value.replace(/\D/g, '') }); }}
                 className="w-full px-3.5 py-2.5 rounded-lg border border-[#D9CEBE] bg-[#FAF7F2]/50 text-[#0F3A24] text-xs font-bold focus:outline-none focus:border-[#0F3A24]"
               />
             </div>
@@ -666,10 +710,13 @@ export const AdminDashboard = ({ onClose }) => {
               <input
                 type="text"
                 value={settingsForm.payment?.upiId || ''}
-                onChange={(e) => setSettingsForm({
-                  ...settingsForm,
-                  payment: { ...(settingsForm.payment || {}), upiId: e.target.value }
-                })}
+                onChange={(e) => {
+                  setIsFormDirty(true);
+                  setSettingsForm({
+                    ...settingsForm,
+                    payment: { ...(settingsForm.payment || {}), upiId: e.target.value }
+                  });
+                }}
                 className="w-full px-3.5 py-2.5 rounded-lg border border-[#D9CEBE] bg-[#FAF7F2]/50 text-[#0F3A24] text-xs font-bold focus:outline-none focus:border-[#0F3A24]"
               />
             </div>
@@ -679,11 +726,14 @@ export const AdminDashboard = ({ onClose }) => {
               <input
                 type="text"
                 inputMode="numeric"
-                value={settingsForm.payment?.amount !== undefined ? settingsForm.payment.amount : 499}
-                onChange={(e) => setSettingsForm({
-                  ...settingsForm,
-                  payment: { ...(settingsForm.payment || {}), amount: e.target.value.replace(/\D/g, '') }
-                })}
+                value={settingsForm.payment?.amount !== undefined && settingsForm.payment.amount !== null ? settingsForm.payment.amount : ''}
+                onChange={(e) => {
+                  setIsFormDirty(true);
+                  setSettingsForm({
+                    ...settingsForm,
+                    payment: { ...(settingsForm.payment || {}), amount: e.target.value.replace(/\D/g, '') }
+                  });
+                }}
                 className="w-full px-3.5 py-2.5 rounded-lg border border-[#D9CEBE] bg-[#FAF7F2]/50 text-[#0F3A24] text-xs font-bold focus:outline-none focus:border-[#0F3A24]"
               />
             </div>
@@ -693,10 +743,13 @@ export const AdminDashboard = ({ onClose }) => {
               <input
                 type="text"
                 value={settingsForm.payment?.accountHolder || ''}
-                onChange={(e) => setSettingsForm({
-                  ...settingsForm,
-                  payment: { ...(settingsForm.payment || {}), accountHolder: e.target.value }
-                })}
+                onChange={(e) => {
+                  setIsFormDirty(true);
+                  setSettingsForm({
+                    ...settingsForm,
+                    payment: { ...(settingsForm.payment || {}), accountHolder: e.target.value }
+                  });
+                }}
                 className="w-full px-3.5 py-2.5 rounded-lg border border-[#D9CEBE] bg-[#FAF7F2]/50 text-[#0F3A24] text-xs font-bold focus:outline-none focus:border-[#0F3A24]"
               />
             </div>
@@ -711,7 +764,15 @@ export const AdminDashboard = ({ onClose }) => {
                 {/* Live QR Image Box */}
                 <div className="w-32 h-32 p-2 bg-white rounded-xl border border-[#D9CEBE] shadow-xs flex items-center justify-center shrink-0 overflow-hidden">
                   <img
-                    src={qrFile ? URL.createObjectURL(qrFile) : (settingsForm.payment?.qrImage || 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=farmfusionai@okaxis')}
+                    src={
+                      qrFile
+                        ? URL.createObjectURL(qrFile)
+                        : (settingsForm.payment?.qrImage
+                            ? settingsForm.payment.qrImage
+                            : (settingsForm.payment?.upiId
+                                ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(settingsForm.payment.upiId)}`
+                                : ''))
+                    }
                     alt="Payment QR Code Preview"
                     className="w-full h-full object-contain rounded-lg"
                   />
@@ -730,7 +791,7 @@ export const AdminDashboard = ({ onClose }) => {
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={(e) => setQrFile(e.target.files[0])}
+                    onChange={(e) => { setIsFormDirty(true); setQrFile(e.target.files[0]); }}
                     className="w-full text-xs text-[#0F3A24] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-extrabold file:bg-[#0F3A24] file:text-white hover:file:bg-[#0A2B1A] cursor-pointer"
                   />
                 </div>

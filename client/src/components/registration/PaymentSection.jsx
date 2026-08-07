@@ -40,6 +40,28 @@ export const PaymentSection = () => {
   // 5-Minute Reservation Countdown Timer State
   const [timeLeft, setTimeLeft] = useState(300);
 
+  // Poll Payment QR endpoint (/api/event/qr) every 1 second
+  const [liveQrData, setLiveQrData] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchLiveQr = async () => {
+      try {
+        const res = await axios.get('/api/event/qr');
+        if (isMounted && res.data?.success) {
+          setLiveQrData(res.data);
+        }
+      } catch (_e) {}
+    };
+
+    fetchLiveQr();
+    const interval = setInterval(fetchLiveQr, 1000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   useEffect(() => {
     if (!activeReservation?.expiresAt) return;
 
@@ -84,7 +106,7 @@ export const PaymentSection = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const payment = eventData.payment || {};
+  const payment = liveQrData || eventData.payment || {};
   const upiId = (payment.upiId && typeof payment.upiId === 'string' && !payment.upiId.includes('undefined')) ? payment.upiId : 'farmfusionai@okaxis';
   const amount = payment.amount || 499;
   const accountHolder = payment.accountHolder || 'FarmFusion Org';

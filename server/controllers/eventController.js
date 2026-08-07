@@ -79,6 +79,37 @@ export const getEventDetails = async (req, res, next) => {
   }
 };
 
+// GET /api/event/qr or /api/qr - Dedicated endpoint for payment QR Code
+export const getEventQr = async (req, res, next) => {
+  try {
+    let event = await Event.findOne().lean();
+    let currentQrImage = event?.payment?.qrImage;
+
+    if (!currentQrImage || currentQrImage.startsWith('/uploads')) {
+      currentQrImage = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=farmfusionai@okaxis';
+    }
+
+    const upiId = event?.payment?.upiId || 'farmfusionai@okaxis';
+    const amount = event?.payment?.amount !== undefined ? event.payment.amount : 499;
+    const accountHolder = event?.payment?.accountHolder || 'FarmFusion Org';
+
+    // Direct image redirect if format=image or path is /qr/image
+    if (req.query.format === 'image' || req.query.redirect === 'true' || req.path.endsWith('/image')) {
+      return res.redirect(currentQrImage);
+    }
+
+    res.json({
+      success: true,
+      upiId,
+      amount,
+      accountHolder,
+      qrImage: currentQrImage
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // PUT /api/admin/event - Updates live event configuration strictly in MongoDB
 export const updateEventDetails = async (req, res, next) => {
   try {

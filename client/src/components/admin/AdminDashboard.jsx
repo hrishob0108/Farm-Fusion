@@ -28,11 +28,16 @@ export const AdminDashboard = ({ onClose }) => {
 
   // Event Settings Form State
   const [settingsForm, setSettingsForm] = useState(eventData || {});
+  const [settingsInitialized, setSettingsInitialized] = useState(false);
   const [qrFile, setQrFile] = useState(null);
 
+  // Populate settingsForm ONCE on initial load without overwriting admin's active typing on background polling
   useEffect(() => {
-    setSettingsForm(eventData);
-  }, [eventData]);
+    if (!settingsInitialized && eventData && Object.keys(eventData).length > 0) {
+      setSettingsForm(eventData);
+      setSettingsInitialized(true);
+    }
+  }, [eventData, settingsInitialized]);
 
   // Debounce search input by 300ms to eliminate typing lag and avoid excessive API requests
   useEffect(() => {
@@ -42,11 +47,10 @@ export const AdminDashboard = ({ onClose }) => {
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
-  // Load Registrations Data & Live Event Analytics from Backend
+  // Load Registrations Data strictly from Backend
   const loadData = async (signal) => {
     try {
       setLoading(true);
-      fetchEventDetails();
       const regRes = await axios.get('/api/admin/registrations', {
         params: { search: debouncedSearchTerm, status: statusFilter },
         signal: signal instanceof AbortSignal ? signal : undefined
@@ -58,6 +62,24 @@ export const AdminDashboard = ({ onClose }) => {
       if (!axios.isCancel(error) && error.name !== 'CanceledError' && error.name !== 'AbortError') {
         console.warn('[AdminDashboard] Registration fetch fallback active:', error.message);
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Manual Refresh Handler (Fetches fresh event details + registrations ON DEMAND when Refresh button is clicked)
+  const handleRefreshSettings = async () => {
+    try {
+      setLoading(true);
+      const res = await axios.get('/api/event');
+      if (res.data) {
+        setEventData(res.data);
+        setSettingsForm(res.data);
+      }
+      await loadData();
+      toast.success('Event settings refreshed!');
+    } catch (error) {
+      toast.error('Failed to refresh event settings');
     } finally {
       setLoading(false);
     }
@@ -219,9 +241,9 @@ export const AdminDashboard = ({ onClose }) => {
         {/* Header Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
           <button
-            onClick={loadData}
+            onClick={handleRefreshSettings}
             className="p-2 sm:px-3 sm:py-2 rounded-lg bg-white border border-[#D9CEBE] text-[#0F3A24] hover:bg-[#FAF7F2] transition text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-            title="Refresh Data"
+            title="Refresh Settings & Data"
           >
             <RefreshCw className={`w-4 h-4 text-[#7A4F23] ${loading ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">Refresh</span>
@@ -531,9 +553,20 @@ export const AdminDashboard = ({ onClose }) => {
       {/* TAB 2: EVENT SETTINGS */}
       {activeTab === 'settings' && (
         <form onSubmit={handleSaveSettings} className="p-4 sm:p-6 space-y-6 max-w-3xl">
-          <h4 className="text-lg font-black text-[#0F3A24] border-b border-[#E6DFD5] pb-2">
-            Configure Live Event & Team Limits Settings
-          </h4>
+          <div className="flex items-center justify-between border-b border-[#E6DFD5] pb-2">
+            <h4 className="text-lg font-black text-[#0F3A24]">
+              Configure Live Event & Team Limits Settings
+            </h4>
+            <button
+              type="button"
+              onClick={handleRefreshSettings}
+              className="px-3 py-1 rounded-lg bg-[#FAF7F2] border border-[#D9CEBE] text-[#0F3A24] hover:bg-[#EFE9DF] text-xs font-bold flex items-center gap-1.5 cursor-pointer transition shadow-2xs"
+              title="Refresh Event Settings from Database"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-[#7A4F23] ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh Settings</span>
+            </button>
+          </div>
 
           {/* Dedicated Instant 1-Click Registration Status Switch for MongoDB */}
           <div className="p-5 rounded-2xl bg-[#FAF7F2] border border-[#E6DFD5] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

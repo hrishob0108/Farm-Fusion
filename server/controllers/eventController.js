@@ -31,6 +31,12 @@ export const getEventDetails = async (req, res, next) => {
       });
     }
 
+    // Automatically mark expired reservations as 'expired' in MongoDB
+    await Reservation.updateMany(
+      { status: 'reserved', expiresAt: { $lte: new Date() } },
+      { $set: { status: 'expired' } }
+    );
+
     const confirmedCount = await Registration.countDocuments();
     const activeReservedCount = await Reservation.countDocuments({
       status: 'reserved',
@@ -46,9 +52,9 @@ export const getEventDetails = async (req, res, next) => {
     }
 
     const paymentObj = {
-      upiId: event.payment?.upiId || 'farmfusionai@okaxis',
-      amount: event.payment?.amount !== undefined ? event.payment.amount : 499,
-      accountHolder: event.payment?.accountHolder || 'FarmFusion Org',
+      upiId: event.payment?.upiId,
+      amount: event.payment?.amount !== undefined ? event.payment.amount : 1400,
+      accountHolder: event.payment?.accountHolder,
       qrImage: currentQrImage
     };
 

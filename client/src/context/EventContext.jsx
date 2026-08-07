@@ -94,21 +94,28 @@ export const EventProvider = ({ children }) => {
 
   useEffect(() => {
     let isMounted = true;
-    axios.get('/api/event')
-      .then((res) => {
-        if (isMounted && res.data) {
-          setEventData(res.data);
-        }
-      })
-      .catch((error) => {
-        console.warn('[EventContext] Using default event details due to API delay:', error.message);
-      })
-      .finally(() => {
-        if (isMounted) setLoadingEvent(false);
-      });
+
+    const fetchLiveEvent = () => {
+      axios.get('/api/event')
+        .then((res) => {
+          if (isMounted && res.data) {
+            setEventData(res.data);
+          }
+        })
+        .catch((error) => {
+          console.warn('[EventContext] Using default event details due to API delay:', error.message);
+        })
+        .finally(() => {
+          if (isMounted) setLoadingEvent(false);
+        });
+    };
+
+    fetchLiveEvent();
+    const interval = setInterval(fetchLiveEvent, 3000);
 
     return () => {
       isMounted = false;
+      clearInterval(interval);
     };
   }, []);
 

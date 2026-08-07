@@ -16,7 +16,12 @@ export const createReservation = async (req, res, next) => {
     const maxTeams = event?.maxTeams || 50;
     const now = new Date();
 
-    // Clean up expired reservations helper query
+    // Auto-update expired reservations status in MongoDB
+    await Reservation.updateMany(
+      { status: 'reserved', expiresAt: { $lte: now } },
+      { $set: { status: 'expired' } }
+    );
+
     const activeReservedCount = await Reservation.countDocuments({
       status: 'reserved',
       expiresAt: { $gt: now }

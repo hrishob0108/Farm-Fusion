@@ -78,7 +78,7 @@ export const HeroHome = () => {
           </span>
           <Calendar className="w-4 h-4 text-[#7A4F23] flex-shrink-0" />
           <span className="text-center font-medium">
-            <strong className="font-extrabold text-[#7A4F23]">Important Note:</strong> Registration opens on <span className="font-bold underline decoration-[#D4A373]">7th August at 5:45 PM</span>
+            <strong className="font-extrabold text-[#7A4F23]">Important Note:</strong> Registration opens on <span className="font-bold underline decoration-[#D4A373]">7th August after 5:45 PM</span>
           </span>
         </div>
 

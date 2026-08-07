@@ -9,15 +9,6 @@ export const HeroHome = () => {
   const { eventData, setStep, checkLiveRegistrationOpen, fetchEventDetails } = useEvent();
   const [isNavigating, setIsNavigating] = useState(false);
 
-  // Auto-refresh event data & team progress count every 5 seconds silently in background
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchEventDetails();
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [fetchEventDetails]);
-
   const registeredCount = eventData.registeredCount || 0;
   const maxTeams = eventData.maxTeams || 50;
   const progressPercent = Math.min(Math.round((registeredCount / maxTeams) * 100), 100);

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
 const EventContext = createContext();
@@ -78,8 +78,8 @@ export const EventProvider = ({ children }) => {
     localStorage.setItem('farm_fusion_form_draft', JSON.stringify(formData));
   }, [formData]);
 
-  // Fetch Event Details from Backend
-  const fetchEventDetails = async () => {
+  // Fetch Event Details from Backend (Memoized with useCallback)
+  const fetchEventDetails = useCallback(async () => {
     try {
       const res = await axios.get('/api/event');
       if (res.data) {
@@ -90,34 +90,14 @@ export const EventProvider = ({ children }) => {
     } finally {
       setLoadingEvent(false);
     }
-  };
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchLiveEvent = () => {
-      axios.get('/api/event')
-        .then((res) => {
-          if (isMounted && res.data) {
-            setEventData(res.data);
-          }
-        })
-        .catch((error) => {
-          console.warn('[EventContext] Using default event details due to API delay:', error.message);
-        })
-        .finally(() => {
-          if (isMounted) setLoadingEvent(false);
-        });
-    };
-
-    fetchLiveEvent();
-    const interval = setInterval(fetchLiveEvent, 3000);
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
   }, []);
+
+  // Centralized background event state polling (Every 8 Seconds)
+  useEffect(() => {
+    fetchEventDetails();
+    const interval = setInterval(fetchEventDetails, 8000);
+    return () => clearInterval(interval);
+  }, [fetchEventDetails]);
 
   // On-Demand Real-Time Registration Status Check from MongoDB
   const checkLiveRegistrationOpen = async () => {

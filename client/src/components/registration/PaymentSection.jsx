@@ -55,7 +55,7 @@ export const PaymentSection = () => {
     };
 
     fetchLiveQr();
-    const interval = setInterval(fetchLiveQr, 1000);
+    const interval = setInterval(fetchLiveQr, 3000);
     return () => {
       isMounted = false;
       clearInterval(interval);

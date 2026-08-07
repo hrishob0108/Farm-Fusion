@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useEvent } from '../../context/EventContext';
 import { CountdownTimer } from '../countdown/CountdownTimer';
 import { motion } from 'framer-motion';
-import { ArrowRight, Clock, Leaf, Loader2 } from 'lucide-react';
+import { ArrowRight, Calendar, Clock, Leaf, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export const HeroHome = () => {
@@ -70,6 +70,18 @@ export const HeroHome = () => {
       {/* Clean White Card with Logo Theme Borders */}
       <div className="bg-white border border-[#E6DFD5] rounded-2xl p-6 sm:p-10 shadow-md">
         
+        {/* Registration Announcement Note */}
+        <div className="mb-6 px-4 py-3 bg-[#FAF7F2] border border-[#D4A373]/60 rounded-xl flex items-center justify-center gap-2.5 text-sm text-[#0F3A24] shadow-sm">
+          <span className="flex h-2.5 w-2.5 relative flex-shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#D4A373] opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#7A4F23]"></span>
+          </span>
+          <Calendar className="w-4 h-4 text-[#7A4F23] flex-shrink-0" />
+          <span className="text-center font-medium">
+            <strong className="font-extrabold text-[#7A4F23]">Important Note:</strong> Registration opens on <span className="font-bold underline decoration-[#D4A373]">7th August at 5:45 PM</span>
+          </span>
+        </div>
+
         {/* Official Farm Fusion AI Logo Enclosed in Fitted Box */}
         <div className="mb-8 flex items-center justify-center">
           <div className="p-3.5 sm:p-5  inline-flex items-center justify-center">

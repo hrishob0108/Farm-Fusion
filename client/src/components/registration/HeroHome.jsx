@@ -6,7 +6,7 @@ import { ArrowRight, Clock, Leaf, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export const HeroHome = () => {
-  const { eventData, setStep, checkLiveRegistrationOpen, fetchEventDetails } = useEvent();
+  const { eventData, setStep, checkLiveRegistrationOpen, fetchEventDetails, activeReservation } = useEvent();
   const [isNavigating, setIsNavigating] = useState(false);
 
   // Auto-request live event details, slots, and registration status every 5 seconds without page reload
@@ -23,9 +23,9 @@ export const HeroHome = () => {
   const maxTeams = eventData.maxTeams || 50;
   const progressPercent = Math.min(Math.round((registeredCount / maxTeams) * 100), 100);
   
-  // Registration is open ONLY if explicitly open AND registered count is below max limit
+  const hasReservation = Boolean(activeReservation?.reservationId);
   const isLimitReached = registeredCount >= maxTeams;
-  const isOpen = eventData.registrationOpen !== false && !isLimitReached;
+  const isOpen = eventData.registrationOpen !== false && (!isLimitReached || hasReservation);
 
   const handleRegisterClick = async () => {
     if (!isOpen) {

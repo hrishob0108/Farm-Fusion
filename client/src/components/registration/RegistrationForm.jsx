@@ -7,7 +7,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 
 export const RegistrationForm = () => {
-  const { eventData, formData, setFormData, setStep, checkLiveRegistrationOpen, reserveSlot, fetchEventDetails } = useEvent();
+  const { eventData, formData, setFormData, setStep, checkLiveRegistrationOpen, reserveSlot, fetchEventDetails, activeReservation } = useEvent();
 
   // Auto-request registration status & available slots every 5 seconds live without page reload
   useEffect(() => {
@@ -21,8 +21,10 @@ export const RegistrationForm = () => {
 
   const registeredCount = eventData.registeredCount || 0;
   const maxTeams = eventData.maxTeams || 50;
+  const hasReservation = Boolean(activeReservation?.reservationId);
   const isLimitReached = registeredCount >= maxTeams;
-  const isRegistrationOpen = eventData.registrationOpen !== false && !isLimitReached;
+  // Allow registration form submission if the user already holds a valid temporary slot reservation
+  const isRegistrationOpen = eventData.registrationOpen !== false && (!isLimitReached || hasReservation);
 
   const minMembers = eventData.minMembers || 2;
   const maxMembers = eventData.maxMembers || 4;
@@ -234,6 +236,13 @@ export const RegistrationForm = () => {
       toast.error('Failed to submit form. Please check your network connection.');
       setIsSubmitting(false);
     }
+  };
+
+  const handleBackToHome = async () => {
+    if (activeReservation?.reservationId) {
+      await releaseSlot();
+    }
+    setStep(1);
   };
 
   return (
@@ -609,7 +618,7 @@ export const RegistrationForm = () => {
             <button
               type="button"
               disabled={isSubmitting}
-              onClick={() => setStep(1)}
+              onClick={handleBackToHome}
               className="w-full sm:w-auto px-5 py-2.5 rounded-lg border border-[#D9CEBE] text-[#0F3A24] text-sm font-bold hover:bg-[#FAF7F2] transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               ← Back To Home

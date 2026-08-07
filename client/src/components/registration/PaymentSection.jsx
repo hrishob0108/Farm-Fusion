@@ -36,7 +36,7 @@ export const PaymentSection = () => {
   
   // Allow payment submission for reservation holders as long as the admin portal is open
   const isPortalOpen = eventData.isPortalOpen !== false;
-  const isRegistrationOpen = isPortalOpen || hasReservation;
+  const isRegistrationOpen = isPortalOpen && (registeredCount < maxTeams || hasReservation);
   const showClosedBanner = !isPortalOpen && !hasReservation;
   
   const [transactionId, setTransactionId] = useState(formData.transactionId || '');
@@ -281,10 +281,8 @@ export const PaymentSection = () => {
   };
 
   const handleBackToForm = async () => {
-    if (window.confirm('Going back will release your temporary 5-minute slot reservation. Are you sure?')) {
-      await releaseSlot();
-      setStep(2);
-    }
+    await releaseSlot();
+    setStep(2);
   };
 
   return (

@@ -35,7 +35,7 @@ export const adminLogin = async (req, res, next) => {
 
     const token = jwt.sign(
       { username, role: 'admin' },
-      process.env.JWT_SECRET || 'farm_fusion_ai_super_secret_jwt_key_2026_green_tech',
+      process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
 

@@ -31,10 +31,16 @@ export const createRegistration = async (req, res, next) => {
       }
     }
 
-    const totalRegisteredCount = await Registration.countDocuments();
+    const activeReservedCount = await Reservation.countDocuments({
+      status: 'reserved',
+      expiresAt: { $gt: new Date() }
+    });
+    const confirmedCount = await Registration.countDocuments();
+    const totalOccupied = confirmedCount + activeReservedCount;
     const maxTeams = event?.maxTeams || 50;
-    if (!activeReservation && totalRegisteredCount >= maxTeams) {
-      console.warn(`[Registration Error] Registration capacity reached (${totalRegisteredCount}/${maxTeams})`);
+
+    if (!activeReservation && totalOccupied >= maxTeams) {
+      console.warn(`[Registration Error] Registration capacity reached (${totalOccupied}/${maxTeams})`);
       return res.status(400).json({
         success: false,
         message: `Registration capacity limit of ${maxTeams} teams has been reached.`
@@ -181,6 +187,23 @@ export const createRegistration = async (req, res, next) => {
     });
 
     const createdRecord = await registration.save();
+
+    // Post-save Race Condition Verification for non-reserved registrations
+    if (!activeReservation) {
+      const finalConfirmed = await Registration.countDocuments();
+      const finalReserved = await Reservation.countDocuments({
+        status: 'reserved',
+        expiresAt: { $gt: new Date() }
+      });
+      if ((finalConfirmed + finalReserved) > maxTeams) {
+        console.warn(`[Registration Concurrency Blocked] Capacity exceeded on direct registration. Deleting record ${createdRecord._id}`);
+        await Registration.deleteOne({ _id: createdRecord._id });
+        return res.status(400).json({
+          success: false,
+          message: `Registration capacity limit of ${maxTeams} teams has been reached.`
+        });
+      }
+    }
 
     // Mark temporary reservation as confirmed
     if (activeReservation) {

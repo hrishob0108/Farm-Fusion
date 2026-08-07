@@ -160,6 +160,29 @@ export const createReservation = async (req, res, next) => {
     });
 
     await newReservation.save();
+
+    // Post-save Race Condition Check (Atomic concurrency verification)
+    const confirmedCountAfter = await Registration.countDocuments();
+    const availableSlots = Math.max(0, maxTeams - confirmedCountAfter);
+
+    const activeReservations = await Reservation.find({
+      status: 'reserved',
+      expiresAt: { $gt: new Date() }
+    }).sort({ createdAt: 1, _id: 1 }).lean();
+
+    const reservationIndex = activeReservations.findIndex(
+      r => r._id.toString() === newReservation._id.toString()
+    );
+
+    if (reservationIndex === -1 || reservationIndex >= availableSlots) {
+      console.warn(`[Reservation Concurrency Blocked] Capacity reached during simultaneous request. Cancelling reservation ${reservationId}`);
+      await Reservation.deleteOne({ _id: newReservation._id });
+      return res.status(400).json({
+        success: false,
+        message: `Registration capacity limit of ${maxTeams} teams has been reached.`
+      });
+    }
+
     console.log(`[Reservation Created] ID: ${reservationId} | Team: ${trimmedTeamName} | Expires: ${expiresAt.toISOString()}`);
 
     res.status(201).json({

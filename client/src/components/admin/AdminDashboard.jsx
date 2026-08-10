@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { useEvent } from '../../context/EventContext';
 import { exportToCSV, exportToJSON, exportToPDF } from '../../services/exportUtils';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import {
-  Users, CheckCircle2, Clock, XCircle, Search,
+  Users, CheckCircle2, Clock, XCircle, Search, AlertTriangle,
   FileSpreadsheet, FileText, FileCode, Download, RefreshCw, Eye, X, LogOut,
   Sliders, Activity, Check, Power, Mail, Phone, QrCode, MessageSquare, Link as LinkIcon
 } from 'lucide-react';
 
 export const AdminDashboard = ({ onClose }) => {
   const { logout, adminUser } = useAuth();
-  const { eventData, fetchEventDetails } = useEvent();
+  const { eventData, fetchEventDetails, setEventData } = useEvent();
 
   const [activeTab, setActiveTab] = useState('registrations'); // 'registrations' | 'settings'
   const [registrations, setRegistrations] = useState([]);
@@ -25,6 +26,60 @@ export const AdminDashboard = ({ onClose }) => {
 
   // Selected screenshot preview modal
   const [viewScreenshot, setViewScreenshot] = useState(null);
+
+  // Confirmation Modal State for Verify / Reject / Resend Email actions
+  const [pendingAction, setPendingAction] = useState(null); // { type: 'verify' | 'reject' | 'resend', reg: Object }
+  const [selectedReasonChip, setSelectedReasonChip] = useState('');
+  const [customReasonNote, setCustomReasonNote] = useState('');
+  const [isActionSubmitting, setIsActionSubmitting] = useState(false);
+
+  const REJECTION_PRESETS = [
+    'Invalid UTR / Transaction ID',
+    'Payment Screenshot Unclear or Missing',
+    'Incorrect Payment Amount',
+    'Duplicate Registration Submission',
+    'Other / Custom Reason'
+  ];
+
+  const openConfirmModal = (type, reg) => {
+    setPendingAction({ type, reg });
+    setSelectedReasonChip('');
+    setCustomReasonNote('');
+  };
+
+  const closeConfirmModal = () => {
+    if (isActionSubmitting) return;
+    setPendingAction(null);
+    setSelectedReasonChip('');
+    setCustomReasonNote('');
+  };
+
+  const handleConfirmActionSubmit = async () => {
+    if (!pendingAction || !pendingAction.reg) return;
+    const { type, reg } = pendingAction;
+    setIsActionSubmitting(true);
+
+    try {
+      if (type === 'verify') {
+        await handleUpdateStatus(reg._id, 'Verified');
+      } else if (type === 'reject') {
+        let finalReason = selectedReasonChip;
+        if (selectedReasonChip === 'Other / Custom Reason' || !selectedReasonChip) {
+          finalReason = customReasonNote.trim() || 'Payment details could not be verified.';
+        } else if (customReasonNote.trim()) {
+          finalReason = `${selectedReasonChip} - ${customReasonNote.trim()}`;
+        }
+        await handleUpdateStatus(reg._id, 'Rejected', finalReason);
+      } else if (type === 'resend') {
+        await handleResendEmail(reg._id, reg.teamName);
+      }
+      setPendingAction(null);
+    } catch (err) {
+      console.error('Confirmation action error:', err);
+    } finally {
+      setIsActionSubmitting(false);
+    }
+  };
 
   // Event Settings Form State
   const [settingsForm, setSettingsForm] = useState(eventData || {});
@@ -457,8 +512,8 @@ export const AdminDashboard = ({ onClose }) => {
                   <th className="p-4">Team & Leader</th>
                   <th className="p-4">Reg No / Email / Phone</th>
                   <th className="p-4">Section / Branch</th>
-                  <th className="p-4">Members Count</th>
-                  <th className="p-4">Txn ID / Receipt</th>
+                  <th className="py-4 pl-3 pr-0 w-28 whitespace-nowrap">Members Count</th>
+                  <th className="py-4 pl-1 pr-3 w-36 whitespace-nowrap">Txn ID / Receipt</th>
                   <th className="p-4">Status</th>
                   <th className="p-4 text-right">Actions</th>
                 </tr>
@@ -505,22 +560,22 @@ export const AdminDashboard = ({ onClose }) => {
                       </td>
 
                       {/* Members */}
-                      <td className="p-4">
-                        <span className="inline-flex px-2.5 py-0.5 rounded-full bg-[#FAF7F2] border border-[#D9CEBE] text-[#0F3A24] text-[11px] font-extrabold">
+                      <td className="py-4 pl-3 pr-0 w-28 align-top">
+                        <span className="inline-flex px-2.5 py-0.5 rounded-full bg-[#FAF7F2] border border-[#D9CEBE] text-[#0F3A24] text-[11px] font-extrabold whitespace-nowrap">
                           {(reg.members?.length || 0) + 1} Total
                         </span>
-                        <div className="text-[10px] text-[#7A4F23] font-bold mt-1 max-w-[200px] truncate" title={reg.members?.map(m => `${m.name} (${m.residenceType === 'Hosteller' ? `${m.hostelName} R#${m.roomNumber}` : 'Day Scholar'})`).join(', ')}>
+                        <div className="text-[10px] text-[#7A4F23] font-bold mt-1 max-w-[130px] truncate" title={reg.members?.map(m => `${m.name} (${m.residenceType === 'Hosteller' ? `${m.hostelName} R#${m.roomNumber}` : 'Day Scholar'})`).join(', ')}>
                           {reg.members?.map(m => `${m.name} [${m.residenceType === 'Hosteller' ? `${m.hostelName || 'Hostel'} - ${m.roomNumber}` : 'Day Scholar'}]`).join(', ') || 'Leader Only'}
                         </div>
                       </td>
 
                       {/* Txn ID / Receipt */}
-                      <td className="p-4">
-                        <p className="font-mono text-xs font-extrabold text-[#0F3A24]">{reg.transactionId}</p>
+                      <td className="py-4 pl-1 pr-3 w-36 align-top">
+                        <p className="font-mono text-xs font-extrabold text-[#0F3A24] whitespace-nowrap">{reg.transactionId}</p>
                         {reg.paymentScreenshot && (
                           <button
                             onClick={() => setViewScreenshot(reg.paymentScreenshot)}
-                            className="mt-1 flex items-center gap-1 text-[11px] text-[#0F3A24] hover:underline font-extrabold cursor-pointer"
+                            className="mt-1 flex items-center gap-1 text-[11px] text-[#0F3A24] hover:underline font-extrabold cursor-pointer whitespace-nowrap"
                           >
                             <Eye className="w-3.5 h-3.5 text-[#7A4F23]" /> View Receipt
                           </button>
@@ -552,30 +607,37 @@ export const AdminDashboard = ({ onClose }) => {
 
                       {/* Actions */}
                       <td className="p-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => handleUpdateStatus(reg._id, 'Verified')}
-                            className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition cursor-pointer"
-                            title="Verify Payment & Send Email to Team"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap sm:flex-nowrap">
+                          {reg.paymentStatus !== 'Verified' && (
+                            <button
+                              onClick={() => openConfirmModal('verify', reg)}
+                              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold shadow-2xs transition cursor-pointer flex items-center gap-1 shrink-0"
+                              title="Verify Payment & Send Ticket Email"
+                            >
+                              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                              <span>Verify</span>
+                            </button>
+                          )}
 
                           <button
-                            onClick={() => handleResendEmail(reg._id, reg.teamName)}
-                            className="p-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 transition cursor-pointer"
-                            title="Resend Verification Email to Team Leader & Teammates"
+                            onClick={() => openConfirmModal('resend', reg)}
+                            className="px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-300 text-xs font-extrabold transition cursor-pointer flex items-center gap-1 shrink-0"
+                            title="Send or Resend Email Notification to Team"
                           >
-                            <Mail className="w-4 h-4" />
+                            <Mail className="w-3.5 h-3.5" />
+                            <span>{reg.paymentStatus === 'Verified' ? 'Resend' : 'Mail'}</span>
                           </button>
 
-                          <button
-                            onClick={() => handleUpdateStatus(reg._id, 'Rejected')}
-                            className="p-1.5 rounded-lg bg-[#800E13]/10 text-[#800E13] hover:bg-[#800E13]/20 border border-[#800E13]/30 transition cursor-pointer"
-                            title="Reject Payment"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
+                          {reg.paymentStatus !== 'Rejected' && (
+                            <button
+                              onClick={() => openConfirmModal('reject', reg)}
+                              className="px-2.5 py-1.5 rounded-lg bg-[#800E13]/10 hover:bg-[#800E13]/20 text-[#800E13] border border-[#800E13]/30 text-xs font-extrabold transition cursor-pointer flex items-center gap-1 shrink-0"
+                              title="Reject Registration"
+                            >
+                              <X className="w-3.5 h-3.5 stroke-[2.5]" />
+                              <span>Reject</span>
+                            </button>
+                          )}
                         </div>
                       </td>
 
@@ -852,20 +914,241 @@ export const AdminDashboard = ({ onClose }) => {
       )}
 
       {/* Screenshot Preview Modal */}
-      {viewScreenshot && (
-        <div className="fixed inset-0 z-50 bg-[#0F3A24]/60 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="relative max-w-2xl w-full bg-white p-4 sm:p-6 rounded-2xl border border-[#E6DFD5] shadow-2xl">
-            <button
-              onClick={() => setViewScreenshot(null)}
-              className="absolute top-3 right-3 p-2 bg-[#FAF7F2] rounded-full text-[#0F3A24] hover:bg-[#EFE9DF] cursor-pointer"
+      <AnimatePresence>
+        {viewScreenshot && (
+          <div className="fixed inset-0 z-50 bg-[#0F3A24]/60 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative max-w-2xl w-full bg-white p-4 sm:p-6 rounded-2xl border border-[#E6DFD5] shadow-2xl"
             >
-              <X className="w-5 h-5" />
-            </button>
-            <h4 className="text-sm font-black text-[#0F3A24] mb-3">Payment Receipt Screenshot</h4>
-            <img src={viewScreenshot} alt="Payment Receipt" className="w-full max-h-[70vh] object-contain rounded-xl border border-[#E6DFD5]" />
+              <button
+                onClick={() => setViewScreenshot(null)}
+                className="absolute top-3 right-3 p-2 bg-[#FAF7F2] rounded-full text-[#0F3A24] hover:bg-[#EFE9DF] cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <h4 className="text-sm font-black text-[#0F3A24] mb-3">Payment Receipt Screenshot</h4>
+              <img src={viewScreenshot} alt="Payment Receipt" className="w-full max-h-[70vh] object-contain rounded-xl border border-[#E6DFD5]" />
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
+
+      {/* User-Friendly Action Confirmation Modal (Verify / Reject / Resend Email) */}
+      <AnimatePresence>
+        {pendingAction && pendingAction.reg && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F3A24]/60 backdrop-blur-md overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="w-full max-w-lg bg-white rounded-2xl border border-[#E6DFD5] shadow-2xl overflow-hidden relative text-[#0F3A24] my-8"
+            >
+              {/* Header */}
+              <div className={`px-6 py-4 border-b flex items-center justify-between ${
+                pendingAction.type === 'verify' ? 'bg-emerald-50/90 border-emerald-200' :
+                pendingAction.type === 'reject' ? 'bg-[#800E13]/5 border-[#800E13]/15' :
+                'bg-sky-50/90 border-sky-200'
+              }`}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-xs ${
+                    pendingAction.type === 'verify' ? 'bg-emerald-600 text-white' :
+                    pendingAction.type === 'reject' ? 'bg-[#800E13] text-white' :
+                    'bg-sky-600 text-white'
+                  }`}>
+                    {pendingAction.type === 'verify' && <CheckCircle2 className="w-5 h-5" />}
+                    {pendingAction.type === 'reject' && <AlertTriangle className="w-5 h-5" />}
+                    {pendingAction.type === 'resend' && <Mail className="w-5 h-5" />}
+                  </div>
+                  <div>
+                    <h4 className="text-base font-black text-[#0F3A24]">
+                      {pendingAction.type === 'verify' && 'Confirm Payment Verification'}
+                      {pendingAction.type === 'reject' && 'Confirm Registration Rejection'}
+                      {pendingAction.type === 'resend' && 'Resend Verification Email'}
+                    </h4>
+                    <p className="text-xs font-bold text-[#7A4F23]">
+                      Team: <span className="text-[#0F3A24] font-black">{pendingAction.reg.teamName}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={closeConfirmModal}
+                  disabled={isActionSubmitting}
+                  className="p-1.5 rounded-full text-slate-400 hover:text-[#0F3A24] hover:bg-white/80 transition cursor-pointer"
+                  title="Close modal"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+                
+                {/* Registration Details Summary Card */}
+                <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#E6DFD5] text-xs space-y-2">
+                  <div className="flex justify-between items-center border-b border-[#E6DFD5] pb-2">
+                    <span className="font-bold text-[#7A4F23]">Leader:</span>
+                    <span className="font-extrabold text-[#0F3A24]">{pendingAction.reg.leader?.name} ({pendingAction.reg.leader?.regNo})</span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-[#E6DFD5] pb-2">
+                    <span className="font-bold text-[#7A4F23]">Transaction ID:</span>
+                    <span className="font-mono font-extrabold text-[#0F3A24] bg-white px-2 py-0.5 rounded border border-[#D9CEBE]">
+                      {pendingAction.reg.transactionId || 'N/A'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-[#7A4F23]">Team Size:</span>
+                    <span className="font-extrabold text-[#0F3A24]">{(pendingAction.reg.members?.length || 0) + 1} Members</span>
+                  </div>
+
+                  {/* Payment Screenshot Thumbnail Preview if available */}
+                  {pendingAction.reg.paymentScreenshot && (
+                    <div className="pt-2 border-t border-[#E6DFD5] flex items-center justify-between">
+                      <span className="font-bold text-[#7A4F23]">Receipt Screenshot:</span>
+                      <button
+                        type="button"
+                        onClick={() => setViewScreenshot(pendingAction.reg.paymentScreenshot)}
+                        className="inline-flex items-center gap-1 text-[11px] font-extrabold text-[#0F3A24] hover:underline"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-[#7A4F23]" /> View Receipt
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Verification Info Alert */}
+                {pendingAction.type === 'verify' && (
+                  <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-start gap-2.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">Are you sure you want to verify this payment?</p>
+                      <p className="mt-1 text-[11px] text-emerald-800 leading-relaxed font-medium">
+                        Verifying will update status to <span className="font-extrabold">Verified</span> and automatically dispatch the official event ticket & QR code email to <span className="font-extrabold">{pendingAction.reg.leader?.email}</span> and teammates.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Rejection Info Alert & Reason Controls */}
+                {pendingAction.type === 'reject' && (
+                  <div className="space-y-3">
+                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold">Please select or enter a rejection reason:</p>
+                        <p className="mt-0.5 text-[11px] text-amber-800 font-medium">
+                          This reason will be included in the automated rejection notification email sent to the team.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Quick Reason Chips */}
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-[#7A4F23] mb-1.5">
+                        Quick Preset Reasons:
+                      </label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {REJECTION_PRESETS.map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => {
+                              setSelectedReasonChip(preset);
+                              if (preset !== 'Other / Custom Reason' && !customReasonNote) {
+                                setCustomReasonNote('');
+                              }
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer border ${
+                              selectedReasonChip === preset
+                                ? 'bg-[#800E13] text-white border-[#800E13] shadow-2xs'
+                                : 'bg-[#FAF7F2] text-[#0F3A24] border-[#D9CEBE] hover:bg-[#EFE9DF]'
+                            }`}
+                          >
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Custom / Additional Reason Text */}
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-[#7A4F23] mb-1">
+                        Custom Note / Specific Reason (Optional):
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={customReasonNote}
+                        onChange={(e) => setCustomReasonNote(e.target.value)}
+                        placeholder="e.g. Transaction ID mismatch. Please re-check your UPI payment reference number and contact support."
+                        className="w-full p-2.5 rounded-lg border border-[#D9CEBE] bg-[#FAF7F2]/50 text-xs font-medium text-[#0F3A24] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#800E13]/20 focus:border-[#800E13]"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Resend Info Alert */}
+                {pendingAction.type === 'resend' && (
+                  <div className="p-3.5 rounded-xl bg-sky-50 border border-sky-200 text-xs text-sky-900 flex items-start gap-2.5">
+                    <Mail className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">Resend ticket email to team?</p>
+                      <p className="mt-1 text-[11px] text-sky-800 leading-relaxed font-medium">
+                        This will re-dispatch the confirmation ticket email and WhatsApp links to Team <span className="font-extrabold">"{pendingAction.reg.teamName}"</span>.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+              </div>
+
+              {/* Footer Actions */}
+              <div className="px-6 py-4 bg-[#FAF7F2] border-t border-[#E6DFD5] flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={closeConfirmModal}
+                  disabled={isActionSubmitting}
+                  className="px-4 py-2 rounded-xl border border-[#D9CEBE] bg-white text-[#0F3A24] hover:bg-[#FAF7F2] text-xs font-extrabold transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleConfirmActionSubmit}
+                  disabled={isActionSubmitting}
+                  className={`px-5 py-2 rounded-xl text-white text-xs font-extrabold shadow-md transition cursor-pointer flex items-center gap-2 ${
+                    pendingAction.type === 'verify' ? 'bg-emerald-600 hover:bg-emerald-700' :
+                    pendingAction.type === 'reject' ? 'bg-[#800E13] hover:bg-[#600A0E]' :
+                    'bg-sky-600 hover:bg-sky-700'
+                  }`}
+                >
+                  {isActionSubmitting ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Processing...</span>
+                    </>
+                  ) : (
+                    <>
+                      {pendingAction.type === 'verify' && <CheckCircle2 className="w-4 h-4" />}
+                      {pendingAction.type === 'reject' && <XCircle className="w-4 h-4" />}
+                      {pendingAction.type === 'resend' && <Mail className="w-4 h-4" />}
+                      <span>
+                        {pendingAction.type === 'verify' && 'Confirm & Verify Payment'}
+                        {pendingAction.type === 'reject' && 'Confirm & Reject'}
+                        {pendingAction.type === 'resend' && 'Confirm & Send Email'}
+                      </span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

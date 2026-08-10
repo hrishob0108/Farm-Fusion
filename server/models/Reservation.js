@@ -30,6 +30,12 @@ const reservationSchema = new mongoose.Schema({
     required: true
   },
   members: [memberSchema],
+  transactionId: {
+    type: String,
+    default: '',
+    trim: true,
+    index: true
+  },
   status: {
     type: String,
     enum: ['reserved', 'confirmed', 'expired', 'cancelled'],

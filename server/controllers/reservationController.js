@@ -159,6 +159,7 @@ export const createReservation = async (req, res, next) => {
       teamName: trimmedTeamName,
       leader,
       members,
+      transactionId: req.body.transactionId ? req.body.transactionId.trim() : '',
       status: 'reserved',
       reservedAt: now,
       expiresAt
@@ -255,6 +256,63 @@ export const releaseReservation = async (req, res, next) => {
     res.json({
       success: true,
       message: 'Reservation released successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/admin/reservations - Fetch all reservations for admin dashboard
+export const getAdminReservations = async (req, res, next) => {
+  try {
+    const { search = '', status = 'All' } = req.query;
+
+    let query = {};
+    if (status && status !== 'All') {
+      query.status = status;
+    }
+    if (search) {
+      const regex = new RegExp(search, 'i');
+      query.$or = [
+        { teamName: regex },
+        { reservationId: regex },
+        { transactionId: regex },
+        { 'leader.name': regex },
+        { 'leader.regNo': regex },
+        { 'leader.email': regex }
+      ];
+    }
+
+    // Auto update expired status
+    await Reservation.updateMany(
+      { status: 'reserved', expiresAt: { $lte: new Date() } },
+      { $set: { status: 'expired' } }
+    );
+
+    const items = await Reservation.find(query).sort({ createdAt: -1 }).lean();
+
+    // Cross reference Registration collection to populate transactionId if missing on reservation
+    const registrations = await Registration.find().select('teamName leader.regNo transactionId').lean();
+    const txnMap = new Map();
+    for (const r of registrations) {
+      if (r.teamName && r.transactionId) txnMap.set(r.teamName.trim().toLowerCase(), r.transactionId);
+      if (r.leader?.regNo && r.transactionId) txnMap.set(r.leader.regNo.trim().toLowerCase(), r.transactionId);
+    }
+
+    const populatedItems = items.map(item => {
+      const normTeam = (item.teamName || '').trim().toLowerCase();
+      const leaderReg = (item.leader?.regNo || '').trim().toLowerCase();
+      const txnId = item.transactionId || txnMap.get(normTeam) || txnMap.get(leaderReg) || '';
+      return {
+        ...item,
+        transactionId: txnId
+      };
+    });
+
+    res.json({
+      success: true,
+      total: populatedItems.length,
+      reservations: populatedItems
     });
   } catch (error) {
     next(error);

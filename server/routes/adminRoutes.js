@@ -5,6 +5,8 @@ import { updateEventDetails } from '../controllers/eventController.js';
 import { protectAdmin } from '../middleware/authMiddleware.js';
 import { upload } from '../middleware/uploadMiddleware.js';
 
+import { getAdminReservations } from '../controllers/reservationController.js';
+
 const router = express.Router();
 
 // Public Admin Auth
@@ -13,6 +15,7 @@ router.post('/login', adminLogin);
 // Protected Admin Operations
 router.get('/dashboard', protectAdmin, getDashboardStats);
 router.get('/registrations', protectAdmin, getRegistrations);
+router.get('/reservations', protectAdmin, getAdminReservations);
 router.put('/event', protectAdmin, upload.single('qrImage'), updateEventDetails);
 router.put('/payment-status', protectAdmin, updatePaymentStatus);
 router.post('/resend-email', protectAdmin, resendVerificationEmail);

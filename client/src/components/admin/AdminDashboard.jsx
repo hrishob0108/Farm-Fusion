@@ -15,9 +15,15 @@ export const AdminDashboard = ({ onClose }) => {
   const { logout, adminUser } = useAuth();
   const { eventData, fetchEventDetails, setEventData } = useEvent();
 
-  const [activeTab, setActiveTab] = useState('registrations'); // 'registrations' | 'settings'
+  const [activeTab, setActiveTab] = useState('registrations'); // 'registrations' | 'reservations' | 'settings'
   const [registrations, setRegistrations] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Reservations State
+  const [reservations, setReservations] = useState([]);
+  const [loadingReservations, setLoadingReservations] = useState(false);
+  const [reservationStatusFilter, setReservationStatusFilter] = useState('All');
+  const [selectedReservationModal, setSelectedReservationModal] = useState(null); // Reservation details modal
 
   // Filters & Search
   const [searchTerm, setSearchTerm] = useState('');
@@ -141,6 +147,26 @@ export const AdminDashboard = ({ onClose }) => {
     }
   };
 
+  // Load Reservations Data from Backend
+  const loadReservationsData = async (signal, isSilent = false) => {
+    try {
+      if (!isSilent) setLoadingReservations(true);
+      const res = await axios.get('/api/admin/reservations', {
+        params: { search: debouncedSearchTerm, status: reservationStatusFilter },
+        signal: signal instanceof AbortSignal ? signal : undefined
+      });
+      if (res.data?.reservations) {
+        setReservations(res.data.reservations);
+      }
+    } catch (error) {
+      if (!axios.isCancel(error) && error.name !== 'CanceledError' && error.name !== 'AbortError') {
+        console.warn('[AdminDashboard] Reservation fetch error:', error.message);
+      }
+    } finally {
+      if (!isSilent) setLoadingReservations(false);
+    }
+  };
+
   // Manual Refresh Handler (Fetches fresh event details + registrations ON DEMAND when Refresh button is clicked)
   const handleRefreshSettings = async () => {
     try {
@@ -151,6 +177,7 @@ export const AdminDashboard = ({ onClose }) => {
         setSettingsForm(res.data);
       }
       await loadData();
+      await loadReservationsData();
       toast.success('Event settings refreshed!');
     } catch (error) {
       toast.error('Failed to refresh event settings');
@@ -161,18 +188,26 @@ export const AdminDashboard = ({ onClose }) => {
 
   useEffect(() => {
     const controller = new AbortController();
-    loadData(controller.signal, false);
+    if (activeTab === 'reservations') {
+      loadReservationsData(controller.signal, false);
+    } else {
+      loadData(controller.signal, false);
+    }
 
-    // Silent background auto-refresh every 10 seconds for live registration updates
+    // Silent background auto-refresh every 10 seconds for live updates
     const interval = setInterval(() => {
-      loadData(undefined, true);
+      if (activeTab === 'reservations') {
+        loadReservationsData(undefined, true);
+      } else {
+        loadData(undefined, true);
+      }
     }, 10000);
 
     return () => {
       controller.abort();
       clearInterval(interval);
     };
-  }, [debouncedSearchTerm, statusFilter]);
+  }, [debouncedSearchTerm, statusFilter, reservationStatusFilter, activeTab]);
 
   // Real-time instant client-side filtering over loaded records
   const filteredRegistrations = React.useMemo(() => {
@@ -197,6 +232,36 @@ export const AdminDashboard = ({ onClose }) => {
       );
     });
   }, [registrations, searchTerm]);
+
+  // Client-side filtering for Reservations
+  const filteredReservations = React.useMemo(() => {
+    let result = reservations;
+    if (reservationStatusFilter !== 'All') {
+      result = result.filter(r => r.status === reservationStatusFilter);
+    }
+    if (!searchTerm.trim()) return result;
+
+    const term = searchTerm.toLowerCase().trim();
+    return result.filter(res => {
+      const teamName = res.teamName?.toLowerCase() || '';
+      const leaderName = res.leader?.name?.toLowerCase() || '';
+      const regNo = res.leader?.regNo?.toLowerCase() || '';
+      const email = res.leader?.email?.toLowerCase() || '';
+      const txnId = res.transactionId?.toLowerCase() || '';
+      const resId = res.reservationId?.toLowerCase() || '';
+      const phone = res.leader?.phone?.toLowerCase() || '';
+
+      return (
+        teamName.includes(term) ||
+        leaderName.includes(term) ||
+        regNo.includes(term) ||
+        email.includes(term) ||
+        txnId.includes(term) ||
+        resId.includes(term) ||
+        phone.includes(term)
+      );
+    });
+  }, [reservations, searchTerm, reservationStatusFilter]);
 
   // Update Registration Payment Status Handler
   const handleUpdateStatus = async (id, paymentStatus, rejectionReason = '') => {
@@ -388,9 +453,16 @@ export const AdminDashboard = ({ onClose }) => {
         </div>
 
         {/* Active 5-Min Temporary Reservations */}
-        <div className="p-3.5 rounded-xl bg-white border border-[#E6DFD5] shadow-2xs text-left">
-          <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider flex items-center gap-1">
-            <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" /> Reservations
+        <div
+          onClick={() => setActiveTab('reservations')}
+          className="p-3.5 rounded-xl bg-white border border-[#E6DFD5] hover:border-amber-400 shadow-2xs text-left cursor-pointer transition"
+          title="Click to view Reservations Table"
+        >
+          <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider flex items-center justify-between">
+            <span className="flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" /> Reservations
+            </span>
+            <span className="text-[9px] font-extrabold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">View &rarr;</span>
           </p>
           <p className="text-lg sm:text-xl font-black text-amber-900 mt-0.5">
             {eventData.activeReservedCount || 0} <span className="text-xs font-bold text-slate-500">Holding</span>
@@ -415,6 +487,7 @@ export const AdminDashboard = ({ onClose }) => {
       <div className="px-4 sm:px-6 py-3 bg-white border-b border-[#E6DFD5] flex items-center gap-2 overflow-x-auto">
         {[
           { id: 'registrations', label: 'Registrations Table', icon: Users },
+          { id: 'reservations', label: 'Reservations Table', icon: Clock },
           { id: 'settings', label: 'Event Settings', icon: Sliders }
         ].map(tab => {
           const Icon = tab.icon;
@@ -651,7 +724,164 @@ export const AdminDashboard = ({ onClose }) => {
         </div>
       )}
 
-      {/* TAB 2: EVENT SETTINGS */}
+      {/* TAB 2: RESERVATIONS TABLE */}
+      {activeTab === 'reservations' && (
+        <div className="p-4 sm:p-6 space-y-6">
+          
+          {/* Controls Bar: Search, Status Filter & Export button */}
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+            
+            {/* Search Input */}
+            <div className="relative w-full lg:w-96">
+              <Search className="w-4 h-4 text-[#7A4F23] absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search Team, Leader, Reg No, Txn ID, Res ID..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-9 py-2.5 rounded-lg bg-[#FAF7F2] border border-[#D9CEBE] text-xs font-bold text-[#0F3A24] placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0F3A24]/20 focus:border-[#0F3A24]"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-400 hover:text-[#0F3A24] hover:bg-slate-200/60 transition cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Status Filter & Export Button */}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full lg:w-auto">
+              
+              <select
+                value={reservationStatusFilter}
+                onChange={(e) => setReservationStatusFilter(e.target.value)}
+                className="px-3 py-2.5 rounded-lg bg-[#FAF7F2] border border-[#D9CEBE] text-xs font-bold text-[#0F3A24] cursor-pointer"
+              >
+                <option value="All">All Reservation Statuses</option>
+                <option value="reserved">Reserved (Active 5-Min)</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="expired">Expired</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+
+              <button
+                onClick={() => exportToCSV(filteredReservations)}
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-[#FAF7F2] text-[#0F3A24] border border-[#D9CEBE] hover:bg-[#EFE9DF] text-xs font-bold transition cursor-pointer"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-[#0F3A24]" /> Export CSV
+              </button>
+
+            </div>
+
+          </div>
+
+          {/* Reservations Table Container */}
+          <div className="overflow-x-auto rounded-xl border border-[#E6DFD5] bg-white">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-[#FAF7F2] text-[#0F3A24] font-black border-b border-[#E6DFD5] uppercase tracking-wider">
+                  <th className="p-4">Reservation ID</th>
+                  <th className="p-4">Team & Leader</th>
+                  <th className="p-4">Reg No / Contact</th>
+                  <th className="p-4">Transaction ID</th>
+                  <th className="p-4">Status</th>
+                  <th className="p-4">Reserved / Expires</th>
+                  <th className="p-4 text-right">Details</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E6DFD5] text-[#0F3A24]">
+                {loadingReservations ? (
+                  <tr>
+                    <td colSpan="7" className="p-8 text-center text-[#7A4F23] font-bold">
+                      Loading reservations data...
+                    </td>
+                  </tr>
+                ) : filteredReservations.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="p-8 text-center text-[#7A4F23] font-bold">
+                      {searchTerm ? `No reservations match "${searchTerm}"` : 'No reservation records found.'}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredReservations.map(resItem => (
+                    <tr key={resItem._id} className="hover:bg-[#FAF7F2]/60 transition">
+                      
+                      {/* Reservation ID */}
+                      <td className="p-4">
+                        <span className="font-mono text-xs font-bold text-[#0F3A24] bg-[#FAF7F2] px-2 py-0.5 rounded border border-[#D9CEBE]">
+                          {resItem.reservationId}
+                        </span>
+                      </td>
+
+                      {/* Team & Leader */}
+                      <td className="p-4">
+                        <p className="font-extrabold text-[#0F3A24] text-sm">{resItem.teamName}</p>
+                        <p className="text-[#7A4F23] font-bold mt-0.5">{resItem.leader?.name}</p>
+                      </td>
+
+                      {/* Reg No / Contact */}
+                      <td className="p-4">
+                        <p className="font-mono text-[#0F3A24] font-extrabold">{resItem.leader?.regNo || 'N/A'}</p>
+                        <p className="text-[11px] text-[#7A4F23] font-bold flex items-center gap-1 mt-0.5">
+                          <Phone className="w-3 h-3 text-[#7A4F23]" />
+                          <span>{resItem.leader?.phone || 'N/A'}</span>
+                        </p>
+                      </td>
+
+                      {/* Transaction ID */}
+                      <td className="p-4">
+                        <span className="font-mono text-xs font-extrabold text-[#0F3A24] bg-[#FAF7F2] px-2.5 py-1 rounded-lg border border-[#D9CEBE] inline-block whitespace-nowrap">
+                          {resItem.transactionId || 'N/A'}
+                        </span>
+                      </td>
+
+                      {/* Status */}
+                      <td className="p-4">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold ${
+                          resItem.status === 'confirmed' ? 'bg-emerald-50 text-emerald-800 border border-emerald-300' :
+                          resItem.status === 'reserved' ? 'bg-amber-50 text-amber-800 border border-amber-300' :
+                          resItem.status === 'cancelled' ? 'bg-rose-50 text-rose-800 border border-rose-300' :
+                          'bg-slate-100 text-slate-700 border border-slate-300'
+                        }`}>
+                          {resItem.status === 'confirmed' && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
+                          {resItem.status === 'reserved' && <Clock className="w-3 h-3 text-amber-600 animate-pulse" />}
+                          {resItem.status === 'cancelled' && <XCircle className="w-3 h-3 text-rose-600" />}
+                          {resItem.status === 'expired' && <AlertTriangle className="w-3 h-3 text-slate-500" />}
+                          <span className="capitalize">{resItem.status}</span>
+                        </span>
+                      </td>
+
+                      {/* Reserved / Expires At */}
+                      <td className="p-4 text-[11px] font-bold text-slate-600">
+                        <p>Reserved: {resItem.reservedAt ? new Date(resItem.reservedAt).toLocaleTimeString() : 'N/A'}</p>
+                        <p className="text-amber-800 mt-0.5">Expires: {resItem.expiresAt ? new Date(resItem.expiresAt).toLocaleTimeString() : 'N/A'}</p>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="p-4 text-right">
+                        <button
+                          onClick={() => setSelectedReservationModal(resItem)}
+                          className="px-3 py-1.5 rounded-lg bg-[#0F3A24] text-white hover:bg-[#0A2B1A] text-xs font-extrabold shadow-2xs transition cursor-pointer inline-flex items-center gap-1"
+                        >
+                          <Eye className="w-3.5 h-3.5" /> View Modal
+                        </button>
+                      </td>
+
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      )}
+
+      {/* TAB 3: EVENT SETTINGS */}
       {activeTab === 'settings' && (
         <form onSubmit={handleSaveSettings} className="p-4 sm:p-6 space-y-6 max-w-3xl">
           <div className="flex items-center justify-between border-b border-[#E6DFD5] pb-2">
@@ -1142,6 +1372,140 @@ export const AdminDashboard = ({ onClose }) => {
                       </span>
                     </>
                   )}
+                </button>
+              </div>
+
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Reservation Details Modal (with Transaction ID) */}
+      <AnimatePresence>
+        {selectedReservationModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F3A24]/60 backdrop-blur-md overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="w-full max-w-lg bg-white rounded-2xl border border-[#E6DFD5] shadow-2xl overflow-hidden relative text-[#0F3A24] my-8"
+            >
+              {/* Header */}
+              <div className="px-6 py-4 bg-[#FAF7F2] border-b border-[#E6DFD5] flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <Clock className="w-5 h-5 text-amber-600" />
+                  <h4 className="text-base font-black text-[#0F3A24]">
+                    Reservation Details
+                  </h4>
+                </div>
+
+                <button
+                  onClick={() => setSelectedReservationModal(null)}
+                  className="p-1.5 rounded-full text-slate-400 hover:text-[#0F3A24] hover:bg-white transition cursor-pointer"
+                  title="Close modal"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+                
+                {/* Highlighted Transaction ID Banner */}
+                <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 text-xs space-y-1">
+                  <p className="font-extrabold uppercase text-amber-900 text-[10px] tracking-wider">Transaction ID Reference:</p>
+                  <p className="font-mono text-sm font-black text-[#0F3A24] bg-white px-3 py-1.5 rounded-lg border border-amber-300 shadow-2xs select-all inline-block">
+                    {selectedReservationModal.transactionId || 'N/A (Not Provided)'}
+                  </p>
+                </div>
+
+                {/* Reservation Summary */}
+                <div className="p-4 rounded-xl bg-[#FAF7F2] border border-[#E6DFD5] text-xs space-y-2.5">
+                  <div className="flex justify-between items-center border-b border-[#E6DFD5] pb-2">
+                    <span className="font-bold text-[#7A4F23]">Reservation ID:</span>
+                    <span className="font-mono font-extrabold text-[#0F3A24] bg-white px-2 py-0.5 rounded border border-[#D9CEBE]">
+                      {selectedReservationModal.reservationId}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center border-b border-[#E6DFD5] pb-2">
+                    <span className="font-bold text-[#7A4F23]">Team Name:</span>
+                    <span className="font-extrabold text-sm text-[#0F3A24]">{selectedReservationModal.teamName}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center border-b border-[#E6DFD5] pb-2">
+                    <span className="font-bold text-[#7A4F23]">Status:</span>
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold capitalize ${
+                      selectedReservationModal.status === 'confirmed' ? 'bg-emerald-50 text-emerald-800 border border-emerald-300' :
+                      selectedReservationModal.status === 'reserved' ? 'bg-amber-50 text-amber-800 border border-amber-300' :
+                      selectedReservationModal.status === 'cancelled' ? 'bg-rose-50 text-rose-800 border border-rose-300' :
+                      'bg-slate-100 text-slate-700 border border-slate-300'
+                    }`}>
+                      {selectedReservationModal.status}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center border-b border-[#E6DFD5] pb-2">
+                    <span className="font-bold text-[#7A4F23]">Leader Name:</span>
+                    <span className="font-extrabold text-[#0F3A24]">{selectedReservationModal.leader?.name}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center border-b border-[#E6DFD5] pb-2">
+                    <span className="font-bold text-[#7A4F23]">Leader Reg No:</span>
+                    <span className="font-mono font-extrabold text-[#0F3A24]">{selectedReservationModal.leader?.regNo}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center border-b border-[#E6DFD5] pb-2">
+                    <span className="font-bold text-[#7A4F23]">Phone Number:</span>
+                    <span className="font-extrabold text-[#0F3A24]">{selectedReservationModal.leader?.phone}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center border-b border-[#E6DFD5] pb-2">
+                    <span className="font-bold text-[#7A4F23]">Section / Branch:</span>
+                    <span className="font-extrabold text-[#0F3A24]">{selectedReservationModal.leader?.section} - {selectedReservationModal.leader?.branch}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center border-b border-[#E6DFD5] pb-2">
+                    <span className="font-bold text-[#7A4F23]">Residence Type:</span>
+                    <span className="font-extrabold text-[#0F3A24]">
+                      {selectedReservationModal.leader?.residenceType === 'Hosteller'
+                        ? `Hosteller (${selectedReservationModal.leader.hostelName || 'Hostel'} - Room ${selectedReservationModal.leader.roomNumber})`
+                        : 'Day Scholar'}
+                    </span>
+                  </div>
+
+                  {/* Teammates List */}
+                  {Array.isArray(selectedReservationModal.members) && selectedReservationModal.members.length > 0 && (
+                    <div className="pt-2">
+                      <span className="font-bold text-[#7A4F23] block mb-1.5">Teammates:</span>
+                      <div className="space-y-1.5">
+                        {selectedReservationModal.members.map((m, idx) => (
+                          <div key={idx} className="p-2 bg-white rounded-lg border border-[#D9CEBE] text-[11px] flex justify-between">
+                            <span className="font-bold text-[#0F3A24]">{m.name} ({m.regNo})</span>
+                            <span className="text-slate-600 font-medium">{m.phone}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="pt-2 flex justify-between items-center text-[10px] font-bold text-slate-500">
+                    <span>Reserved: {selectedReservationModal.reservedAt ? new Date(selectedReservationModal.reservedAt).toLocaleString() : 'N/A'}</span>
+                    <span>Expires: {selectedReservationModal.expiresAt ? new Date(selectedReservationModal.expiresAt).toLocaleString() : 'N/A'}</span>
+                  </div>
+
+                </div>
+
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-3 bg-[#FAF7F2] border-t border-[#E6DFD5] flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSelectedReservationModal(null)}
+                  className="px-5 py-2 rounded-xl bg-[#0F3A24] hover:bg-[#0A2B1A] text-white text-xs font-extrabold shadow-sm transition cursor-pointer"
+                >
+                  Close Modal
                 </button>
               </div>
 

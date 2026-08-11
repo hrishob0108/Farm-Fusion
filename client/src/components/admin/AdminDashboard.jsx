@@ -8,7 +8,8 @@ import toast from 'react-hot-toast';
 import {
   Users, CheckCircle2, Clock, XCircle, Search, AlertTriangle,
   FileSpreadsheet, FileText, FileCode, Download, RefreshCw, Eye, X, LogOut,
-  Sliders, Activity, Check, Power, Mail, Phone, QrCode, MessageSquare, Link as LinkIcon
+  Sliders, Activity, Check, Power, Mail, Phone, QrCode, MessageSquare, Link as LinkIcon,
+  UploadCloud, Copy, FileUp, Pencil, Trash2, Plus, UserPlus, Folder, Layers, Edit3, Save, FileImage
 } from 'lucide-react';
 
 export const AdminDashboard = ({ onClose }) => {
@@ -33,7 +34,296 @@ export const AdminDashboard = ({ onClose }) => {
   // Selected screenshot preview modal
   const [viewScreenshot, setViewScreenshot] = useState(null);
 
-  // Confirmation Modal State for Verify / Reject / Resend Email actions
+  // Bulk Push JSON Modal State
+  const [showBulkPushModal, setShowBulkPushModal] = useState(false);
+  const [bulkJsonText, setBulkJsonText] = useState('');
+  const [bulkJsonFile, setBulkJsonFile] = useState(null);
+  const [bulkInputMode, setBulkInputMode] = useState('paste'); // 'paste' | 'file'
+  const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
+  const [bulkResult, setBulkResult] = useState(null);
+
+  const SAMPLE_BULK_JSON = JSON.stringify([
+    {
+      "teamName": "CyberAgronomists",
+      "transactionId": "TXN987654321",
+      "paymentScreenshot": "https://res.cloudinary.com/demo/image/upload/v1234567/sample_receipt.png",
+      "paymentStatus": "Verified",
+      "leader": {
+        "name": "K Jayanth",
+        "regNo": "2300030001",
+        "phone": "9876543210",
+        "section": "S15",
+        "branch": "CSE",
+        "residenceType": "Hosteller",
+        "hostelName": "C-Block",
+        "roomNumber": "302"
+      },
+      "members": [
+        {
+          "name": "Alex Smith",
+          "regNo": "2300030002",
+          "phone": "9876543211",
+          "section": "S15",
+          "branch": "ECE",
+          "residenceType": "Day Scholar",
+          "hostelName": "",
+          "roomNumber": ""
+        }
+      ]
+    }
+  ], null, 2);
+
+  const handleCopySampleJson = () => {
+    navigator.clipboard.writeText(SAMPLE_BULK_JSON);
+    toast.success('Sample JSON template copied to clipboard!');
+  };
+
+  const handleBulkPushSubmit = async () => {
+    let parsedPayload = null;
+
+    if (bulkInputMode === 'file') {
+      if (!bulkJsonFile) {
+        toast.error('Please select a JSON file to upload.');
+        return;
+      }
+      try {
+        const text = await bulkJsonFile.text();
+        parsedPayload = JSON.parse(text);
+      } catch (err) {
+        toast.error('Invalid JSON file format. Please check JSON syntax.');
+        return;
+      }
+    } else {
+      if (!bulkJsonText.trim()) {
+        toast.error('Please paste JSON data into the text area.');
+        return;
+      }
+      try {
+        parsedPayload = JSON.parse(bulkJsonText.trim());
+      } catch (err) {
+        toast.error('Invalid JSON string syntax: ' + err.message);
+        return;
+      }
+    }
+
+    setIsBulkSubmitting(true);
+    setBulkResult(null);
+
+    const loadingToast = toast.loading('Processing bulk push to MongoDB...');
+
+    try {
+      const res = await axios.post('/api/admin/bulk-push', parsedPayload);
+      toast.dismiss(loadingToast);
+
+      if (res.data.success) {
+        toast.success(res.data.message || 'Bulk push completed!');
+        setBulkResult(res.data);
+        await loadData();
+        await loadReservationsData();
+      } else {
+        toast.error(res.data.message || 'Bulk push failed.');
+      }
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      const msg = error.response?.data?.message || 'Error executing bulk push.';
+      toast.error(msg);
+    } finally {
+      setIsBulkSubmitting(false);
+    }
+  };
+
+  // Edit Team Registration Modal State
+  const [editingRegistration, setEditingRegistration] = useState(null);
+  const [editFormData, setEditFormData] = useState(null);
+  const [editScreenshotFile, setEditScreenshotFile] = useState(null);
+  const [isEditSubmitting, setIsEditSubmitting] = useState(false);
+
+  const openEditModal = (reg) => {
+    setEditingRegistration(reg);
+    setEditScreenshotFile(null);
+    setEditFormData({
+      teamName: reg.teamName || '',
+      transactionId: reg.transactionId || '',
+      paymentStatus: reg.paymentStatus || 'Pending',
+      rejectionReason: reg.rejectionReason || '',
+      paymentScreenshotUrl: reg.paymentScreenshot || '',
+      leader: {
+        name: reg.leader?.name || '',
+        regNo: reg.leader?.regNo || '',
+        phone: reg.leader?.phone || '',
+        section: reg.leader?.section || '',
+        branch: reg.leader?.branch || '',
+        residenceType: reg.leader?.residenceType || 'Day Scholar',
+        hostelName: reg.leader?.hostelName || '',
+        roomNumber: reg.leader?.roomNumber || ''
+      },
+      members: Array.isArray(reg.members) ? reg.members.map(m => ({
+        name: m.name || '',
+        regNo: m.regNo || '',
+        phone: m.phone || '',
+        section: m.section || '',
+        branch: m.branch || '',
+        residenceType: m.residenceType || 'Day Scholar',
+        hostelName: m.hostelName || '',
+        roomNumber: m.roomNumber || ''
+      })) : []
+    });
+  };
+
+  const closeEditModal = () => {
+    if (isEditSubmitting) return;
+    setEditingRegistration(null);
+    setEditFormData(null);
+    setEditScreenshotFile(null);
+  };
+
+  const handleAddTeammateToEdit = () => {
+    if (!editFormData) return;
+    setEditFormData(prev => ({
+      ...prev,
+      members: [
+        ...prev.members,
+        {
+          name: '',
+          regNo: '',
+          phone: '',
+          section: '',
+          branch: '',
+          residenceType: 'Day Scholar',
+          hostelName: '',
+          roomNumber: ''
+        }
+      ]
+    }));
+  };
+
+  const handleRemoveTeammateFromEdit = (index) => {
+    if (!editFormData) return;
+    setEditFormData(prev => ({
+      ...prev,
+      members: prev.members.filter((_, idx) => idx !== index)
+    }));
+  };
+
+  const handleOpenAddNewTeam = () => {
+    setEditingRegistration({ _id: 'NEW_TEAM' });
+    setEditScreenshotFile(null);
+    setEditFormData({
+      teamName: '',
+      transactionId: `TXN_${Date.now()}`,
+      paymentStatus: 'Verified',
+      rejectionReason: '',
+      paymentScreenshotUrl: '',
+      leader: {
+        name: '',
+        regNo: '',
+        phone: '',
+        section: '',
+        branch: '',
+        residenceType: 'Day Scholar',
+        hostelName: '',
+        roomNumber: ''
+      },
+      members: []
+    });
+  };
+
+  const handleDeleteRegistration = async (id, teamName) => {
+    if (!window.confirm(`Are you sure you want to delete Team "${teamName}"? This action cannot be undone.`)) return;
+    const loadingToast = toast.loading(`Deleting Team ${teamName}...`);
+    try {
+      const res = await axios.delete(`/api/admin/registration/${id}`);
+      toast.dismiss(loadingToast);
+      if (res.data.success) {
+        toast.success(`Team "${teamName}" deleted from database.`);
+        await loadData();
+        await loadReservationsData();
+      } else {
+        toast.error(res.data.message || 'Failed to delete registration');
+      }
+    } catch (err) {
+      toast.dismiss(loadingToast);
+      toast.error('Failed to delete registration');
+    }
+  };
+
+  const handleSaveRegistrationEdit = async (e) => {
+    e.preventDefault();
+    if (!editingRegistration || !editFormData) return;
+
+    if (!editFormData.teamName || !editFormData.teamName.trim()) {
+      toast.error('Team Name is required.');
+      return;
+    }
+    if (!editFormData.leader || !editFormData.leader.name || !editFormData.leader.regNo) {
+      toast.error('Team Leader Name and Reg No are required.');
+      return;
+    }
+
+    setIsEditSubmitting(true);
+    const isNew = editingRegistration._id === 'NEW_TEAM';
+    const loadingToast = toast.loading(`${isNew ? 'Creating' : 'Saving updates for'} Team "${editFormData.teamName}"...`);
+
+    try {
+      if (isNew) {
+        const newTeamObj = {
+          teamName: editFormData.teamName,
+          transactionId: editFormData.transactionId || `TXN_${Date.now()}`,
+          paymentScreenshot: editFormData.paymentScreenshotUrl || 'https://via.placeholder.com/600x400.png?text=Payment+Receipt',
+          paymentStatus: editFormData.paymentStatus,
+          rejectionReason: editFormData.rejectionReason || '',
+          leader: editFormData.leader,
+          members: editFormData.members
+        };
+
+        const res = await axios.post('/api/admin/bulk-push', [newTeamObj]);
+        toast.dismiss(loadingToast);
+        if (res.data.success && res.data.insertedCount > 0) {
+          toast.success(`New Team "${editFormData.teamName}" created successfully!`);
+          closeEditModal();
+          await loadData();
+          await loadReservationsData();
+        } else {
+          const reason = res.data.skipped?.[0]?.reason || 'Failed to create new team.';
+          toast.error(reason);
+        }
+      } else {
+        const payload = new FormData();
+        payload.append('teamName', editFormData.teamName);
+        payload.append('transactionId', editFormData.transactionId);
+        payload.append('paymentStatus', editFormData.paymentStatus);
+        payload.append('rejectionReason', editFormData.rejectionReason || '');
+        payload.append('paymentScreenshotUrl', editFormData.paymentScreenshotUrl || '');
+        payload.append('leader', JSON.stringify(editFormData.leader));
+        payload.append('members', JSON.stringify(editFormData.members));
+
+        if (editScreenshotFile) {
+          payload.append('paymentScreenshotFile', editScreenshotFile);
+        }
+
+        const res = await axios.put(`/api/admin/registration/${editingRegistration._id}`, payload, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+
+        toast.dismiss(loadingToast);
+
+        if (res.data.success) {
+          toast.success(`Team "${editFormData.teamName}" details updated successfully!`);
+          closeEditModal();
+          await loadData();
+          await loadReservationsData();
+        } else {
+          toast.error(res.data.message || 'Failed to update team details.');
+        }
+      }
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      const msg = error.response?.data?.message || 'Error processing team registration.';
+      toast.error(msg);
+    } finally {
+      setIsEditSubmitting(false);
+    }
+  };
   const [pendingAction, setPendingAction] = useState(null); // { type: 'verify' | 'reject' | 'resend', reg: Object }
   const [selectedReasonChip, setSelectedReasonChip] = useState('');
   const [customReasonNote, setCustomReasonNote] = useState('');
@@ -487,6 +777,7 @@ export const AdminDashboard = ({ onClose }) => {
       <div className="px-4 sm:px-6 py-3 bg-white border-b border-[#E6DFD5] flex items-center gap-2 overflow-x-auto">
         {[
           { id: 'registrations', label: 'Registrations Table', icon: Users },
+          { id: 'all-teams', label: 'All Teams & Edit Data', icon: Layers },
           { id: 'reservations', label: 'Reservations Table', icon: Clock },
           { id: 'settings', label: 'Event Settings', icon: Sliders }
         ].map(tab => {
@@ -573,22 +864,33 @@ export const AdminDashboard = ({ onClose }) => {
                 <FileText className="w-4 h-4 text-[#0F3A24]" /> PDF
               </button>
 
+              <button
+                onClick={() => {
+                  setShowBulkPushModal(true);
+                  setBulkResult(null);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg bg-[#0F3A24] text-[#D4A373] hover:bg-[#092617] text-xs font-bold transition cursor-pointer shadow-xs border border-[#0F3A24]"
+                title="Bulk push team registrations from JSON string or file"
+              >
+                <UploadCloud className="w-4 h-4 text-[#D4A373]" /> Bulk Push JSON
+              </button>
+
             </div>
 
           </div>
 
           {/* Registrations Table Container */}
           <div className="overflow-x-auto rounded-xl border border-[#E6DFD5] bg-white">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="w-full min-w-[1060px] text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-[#FAF7F2] text-[#0F3A24] font-black border-b border-[#E6DFD5] uppercase tracking-wider">
-                  <th className="p-4">Team & Leader</th>
-                  <th className="p-4">Reg No / Email / Phone</th>
-                  <th className="p-4">Section / Branch</th>
-                  <th className="py-4 pl-3 pr-0 w-28 whitespace-nowrap">Members Count</th>
-                  <th className="py-4 pl-1 pr-3 w-36 whitespace-nowrap">Txn ID / Receipt</th>
-                  <th className="p-4">Status</th>
-                  <th className="p-4 text-right">Actions</th>
+                <tr className="bg-[#FAF7F2] text-[#0F3A24] font-black border-b border-[#E6DFD5] uppercase tracking-wider text-[11px]">
+                  <th className="p-4 min-w-[160px]">Team & Leader</th>
+                  <th className="p-4 min-w-[170px]">Reg No / Email / Phone</th>
+                  <th className="p-4 min-w-[160px]">Section / Branch</th>
+                  <th className="p-4 min-w-[130px] whitespace-nowrap">Members Count</th>
+                  <th className="p-4 min-w-[160px] whitespace-nowrap">Txn ID / Receipt</th>
+                  <th className="p-4 min-w-[130px] whitespace-nowrap">Status</th>
+                  <th className="p-4 min-w-[160px] text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E6DFD5] text-[#0F3A24]">
@@ -603,13 +905,13 @@ export const AdminDashboard = ({ onClose }) => {
                     <tr key={reg._id} className="hover:bg-[#FAF7F2]/60 transition">
                       
                       {/* Team & Leader */}
-                      <td className="p-4">
+                      <td className="p-4 align-top">
                         <p className="font-extrabold text-[#0F3A24] text-sm">{reg.teamName}</p>
                         <p className="text-[#7A4F23] font-bold mt-0.5">{reg.leader?.name}</p>
                       </td>
 
                       {/* Reg No / Email / Phone */}
-                      <td className="p-4">
+                      <td className="p-4 align-top">
                         <p className="font-mono text-[#0F3A24] font-extrabold">{reg.leader?.regNo || 'N/A'}</p>
                         <p className="text-[11px] text-[#7A4F23] font-bold flex items-center gap-1">
                           <Mail className="w-3 h-3 text-[#7A4F23] inline shrink-0" />
@@ -622,7 +924,7 @@ export const AdminDashboard = ({ onClose }) => {
                       </td>
 
                       {/* Section / Branch / Residency */}
-                      <td className="p-4">
+                      <td className="p-4 align-top">
                         <p className="font-bold text-[#0F3A24]">{reg.leader?.section || 'N/A'}</p>
                         <p className="text-slate-600 text-[11px] font-medium">{reg.leader?.branch || 'N/A'}</p>
                         <p className="text-[11px] font-bold text-[#7A4F23] mt-0.5">
@@ -633,7 +935,7 @@ export const AdminDashboard = ({ onClose }) => {
                       </td>
 
                       {/* Members */}
-                      <td className="py-4 pl-3 pr-0 w-28 align-top">
+                      <td className="p-4 align-top">
                         <span className="inline-flex px-2.5 py-0.5 rounded-full bg-[#FAF7F2] border border-[#D9CEBE] text-[#0F3A24] text-[11px] font-extrabold whitespace-nowrap">
                           {(reg.members?.length || 0) + 1} Total
                         </span>
@@ -643,7 +945,7 @@ export const AdminDashboard = ({ onClose }) => {
                       </td>
 
                       {/* Txn ID / Receipt */}
-                      <td className="py-4 pl-1 pr-3 w-36 align-top">
+                      <td className="p-4 align-top">
                         <p className="font-mono text-xs font-extrabold text-[#0F3A24] whitespace-nowrap">{reg.transactionId}</p>
                         {reg.paymentScreenshot && (
                           <button
@@ -656,8 +958,8 @@ export const AdminDashboard = ({ onClose }) => {
                       </td>
 
                       {/* Status */}
-                      <td className="p-4">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold ${
+                      <td className="p-4 align-top whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold whitespace-nowrap ${
                           reg.paymentStatus === 'Verified' ? 'bg-emerald-50 text-emerald-800 border border-emerald-300' :
                           reg.paymentStatus === 'Rejected' ? 'bg-[#800E13]/10 text-[#800E13] border border-[#800E13]/30' :
                           reg.paymentStatus === 'Resubmit Requested' ? 'bg-amber-50 text-amber-800 border border-amber-300' :
@@ -671,7 +973,7 @@ export const AdminDashboard = ({ onClose }) => {
 
                         {reg.emailSent && (
                           <div className="mt-1">
-                            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200" title={`Email sent on ${new Date(reg.emailSentAt).toLocaleString()}`}>
+                            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 whitespace-nowrap" title={`Email sent on ${new Date(reg.emailSentAt).toLocaleString()}`}>
                               <Mail className="w-3 h-3 text-emerald-600" /> Email Sent
                             </span>
                           </div>
@@ -679,8 +981,8 @@ export const AdminDashboard = ({ onClose }) => {
                       </td>
 
                       {/* Actions */}
-                      <td className="p-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5 flex-wrap sm:flex-nowrap">
+                      <td className="p-4 text-right align-top whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5 shrink-0 whitespace-nowrap">
                           {reg.paymentStatus !== 'Verified' && (
                             <button
                               onClick={() => openConfirmModal('verify', reg)}
@@ -711,6 +1013,205 @@ export const AdminDashboard = ({ onClose }) => {
                               <span>Reject</span>
                             </button>
                           )}
+                        </div>
+                      </td>
+
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      )}
+
+      {/* TAB: ALL TEAMS & EDIT DATA */}
+      {activeTab === 'all-teams' && (
+        <div className="p-4 sm:p-6 space-y-6">
+          
+          {/* Controls Bar: Search, Status Filter & Action Buttons */}
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+            
+            {/* Search Input */}
+            <div className="relative w-full lg:w-96">
+              <Search className="w-4 h-4 text-[#7A4F23] absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search Team Name, Leader, Reg No, Email, Txn ID..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-9 py-2.5 rounded-lg bg-[#FAF7F2] border border-[#D9CEBE] text-xs font-bold text-[#0F3A24] placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0F3A24]/20 focus:border-[#0F3A24]"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-400 hover:text-[#0F3A24] hover:bg-slate-200/60 transition cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Status Filter & Action Buttons */}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full lg:w-auto">
+              
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-3 py-2.5 rounded-lg bg-[#FAF7F2] border border-[#D9CEBE] text-xs font-bold text-[#0F3A24] cursor-pointer"
+              >
+                <option value="All">All Statuses</option>
+                <option value="Pending">Pending</option>
+                <option value="Verified">Verified</option>
+                <option value="Rejected">Rejected</option>
+              </select>
+
+              <button
+                onClick={() => {
+                  setShowBulkPushModal(true);
+                  setBulkResult(null);
+                }}
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-[#FAF7F2] text-[#7A4F23] border border-[#D9CEBE] hover:bg-[#EFE9DF] text-xs font-bold transition cursor-pointer"
+                title="Bulk Push JSON Registrations"
+              >
+                <UploadCloud className="w-4 h-4 text-[#7A4F23]" /> Bulk Push JSON
+              </button>
+
+              <button
+                onClick={handleOpenAddNewTeam}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg bg-[#0F3A24] text-[#D4A373] hover:bg-[#092617] text-xs font-bold transition cursor-pointer shadow-xs border border-[#0F3A24]"
+                title="Manually Add New Team"
+              >
+                <Plus className="w-4 h-4 text-[#D4A373]" /> Add New Team
+              </button>
+
+            </div>
+
+          </div>
+
+          {/* All Teams Management Table Container */}
+          <div className="overflow-x-auto rounded-xl border border-[#E6DFD5] bg-white">
+            <table className="w-full min-w-[1100px] text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-[#FAF7F2] text-[#0F3A24] font-black border-b border-[#E6DFD5] uppercase tracking-wider text-[11px]">
+                  <th className="p-4 min-w-[170px]">Team & Leader Details</th>
+                  <th className="p-4 min-w-[170px]">Registration No / Contact</th>
+                  <th className="p-4 min-w-[160px]">Branch / Section / Residency</th>
+                  <th className="p-4 min-w-[140px] whitespace-nowrap">Teammates</th>
+                  <th className="p-4 min-w-[160px] whitespace-nowrap">Txn ID / Receipt</th>
+                  <th className="p-4 min-w-[140px] whitespace-nowrap">Payment Status</th>
+                  <th className="p-4 min-w-[170px] text-right whitespace-nowrap">Team Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E6DFD5] text-[#0F3A24]">
+                {loading ? (
+                  <tr>
+                    <td colSpan="7" className="p-8 text-center text-[#7A4F23] font-bold">
+                      Loading team registrations data...
+                    </td>
+                  </tr>
+                ) : filteredRegistrations.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="p-8 text-center text-[#7A4F23] font-bold">
+                      {searchTerm ? `No teams match "${searchTerm}"` : 'No teams found in database.'}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredRegistrations.map(reg => (
+                    <tr key={reg._id} className="hover:bg-[#FAF7F2]/60 transition">
+                      
+                      {/* Team & Leader */}
+                      <td className="p-4 align-top">
+                        <p className="font-extrabold text-[#0F3A24] text-sm flex items-center gap-1.5">
+                          <span>{reg.teamName}</span>
+                        </p>
+                        <p className="text-[#7A4F23] font-bold mt-0.5">{reg.leader?.name}</p>
+                      </td>
+
+                      {/* Reg No / Email / Phone */}
+                      <td className="p-4 align-top">
+                        <p className="font-mono text-[#0F3A24] font-extrabold">{reg.leader?.regNo || 'N/A'}</p>
+                        <p className="text-[11px] text-[#7A4F23] font-bold flex items-center gap-1">
+                          <Mail className="w-3 h-3 text-[#7A4F23] inline shrink-0" />
+                          <span>{reg.leader?.email || (reg.leader?.regNo ? `${reg.leader.regNo}@klu.ac.in` : 'N/A')}</span>
+                        </p>
+                        <p className="text-slate-600 text-[11px] font-medium flex items-center gap-1 mt-0.5">
+                          <Phone className="w-3 h-3 text-slate-500 inline shrink-0" />
+                          <span>{reg.leader?.phone}</span>
+                        </p>
+                      </td>
+
+                      {/* Section / Branch / Residency */}
+                      <td className="p-4 align-top">
+                        <p className="font-bold text-[#0F3A24]">{reg.leader?.section || 'N/A'}</p>
+                        <p className="text-slate-600 text-[11px] font-medium">{reg.leader?.branch || 'N/A'}</p>
+                        <p className="text-[11px] font-bold text-[#7A4F23] mt-0.5">
+                          {reg.leader?.residenceType === 'Hosteller' 
+                            ? `Hosteller (${reg.leader.hostelName || 'Hostel'} - Room ${reg.leader.roomNumber || ''})` 
+                            : (reg.leader?.residenceType || 'Day Scholar')}
+                        </p>
+                      </td>
+
+                      {/* Members */}
+                      <td className="p-4 align-top">
+                        <span className="inline-flex px-2.5 py-0.5 rounded-full bg-[#FAF7F2] border border-[#D9CEBE] text-[#0F3A24] text-[11px] font-extrabold whitespace-nowrap">
+                          {(reg.members?.length || 0) + 1} Total
+                        </span>
+                        <div className="text-[10px] text-[#7A4F23] font-bold mt-1 max-w-[130px] truncate" title={reg.members?.map(m => `${m.name} (${m.residenceType === 'Hosteller' ? `${m.hostelName} R#${m.roomNumber}` : 'Day Scholar'})`).join(', ')}>
+                          {reg.members?.map(m => `${m.name} [${m.residenceType === 'Hosteller' ? `${m.hostelName || 'Hostel'} - ${m.roomNumber}` : 'Day Scholar'}]`).join(', ') || 'Leader Only'}
+                        </div>
+                      </td>
+
+                      {/* Txn ID / Receipt */}
+                      <td className="p-4 align-top">
+                        <p className="font-mono text-xs font-extrabold text-[#0F3A24] whitespace-nowrap">{reg.transactionId}</p>
+                        {reg.paymentScreenshot && (
+                          <button
+                            onClick={() => setViewScreenshot(reg.paymentScreenshot)}
+                            className="mt-1 flex items-center gap-1 text-[11px] text-[#0F3A24] hover:underline font-extrabold cursor-pointer whitespace-nowrap"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-[#7A4F23]" /> View Receipt
+                          </button>
+                        )}
+                      </td>
+
+                      {/* Status */}
+                      <td className="p-4 align-top whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold whitespace-nowrap ${
+                          reg.paymentStatus === 'Verified' ? 'bg-emerald-50 text-emerald-800 border border-emerald-300' :
+                          reg.paymentStatus === 'Rejected' ? 'bg-[#800E13]/10 text-[#800E13] border border-[#800E13]/30' :
+                          reg.paymentStatus === 'Resubmit Requested' ? 'bg-amber-50 text-amber-800 border border-amber-300' :
+                          'bg-sky-50 text-sky-800 border border-sky-300'
+                        }`}>
+                          {reg.paymentStatus === 'Verified' && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
+                          {reg.paymentStatus === 'Pending' && <Clock className="w-3 h-3 text-sky-600" />}
+                          {reg.paymentStatus === 'Rejected' && <XCircle className="w-3 h-3 text-[#800E13]" />}
+                          {reg.paymentStatus}
+                        </span>
+                      </td>
+
+                      {/* Actions: Edit Team Data button */}
+                      <td className="p-4 text-right align-top whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5 shrink-0 whitespace-nowrap">
+                          <button
+                            onClick={() => openEditModal(reg)}
+                            className="px-3 py-1.5 rounded-lg bg-[#0F3A24] hover:bg-[#092617] text-[#D4A373] border border-[#0F3A24] text-xs font-extrabold shadow-2xs transition cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap"
+                            title="Edit Team Data, Upload Screenshot, or Modify Members"
+                          >
+                            <Pencil className="w-3.5 h-3.5 text-[#D4A373]" />
+                            <span>Edit Team Data</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteRegistration(reg._id, reg.teamName)}
+                            className="p-1.5 rounded-lg bg-[#800E13]/10 hover:bg-[#800E13]/20 text-[#800E13] border border-[#800E13]/30 transition cursor-pointer shrink-0"
+                            title="Delete Team Registration"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </td>
 
@@ -781,16 +1282,16 @@ export const AdminDashboard = ({ onClose }) => {
 
           {/* Reservations Table Container */}
           <div className="overflow-x-auto rounded-xl border border-[#E6DFD5] bg-white">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="w-full min-w-[980px] text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-[#FAF7F2] text-[#0F3A24] font-black border-b border-[#E6DFD5] uppercase tracking-wider">
-                  <th className="p-4">Reservation ID</th>
-                  <th className="p-4">Team & Leader</th>
-                  <th className="p-4">Reg No / Contact</th>
-                  <th className="p-4">Transaction ID</th>
-                  <th className="p-4">Status</th>
-                  <th className="p-4">Reserved / Expires</th>
-                  <th className="p-4 text-right">Details</th>
+                <tr className="bg-[#FAF7F2] text-[#0F3A24] font-black border-b border-[#E6DFD5] uppercase tracking-wider text-[11px]">
+                  <th className="p-4 min-w-[130px]">Reservation ID</th>
+                  <th className="p-4 min-w-[160px]">Team & Leader</th>
+                  <th className="p-4 min-w-[150px]">Reg No / Contact</th>
+                  <th className="p-4 min-w-[160px]">Transaction ID</th>
+                  <th className="p-4 min-w-[120px] whitespace-nowrap">Status</th>
+                  <th className="p-4 min-w-[160px]">Reserved / Expires</th>
+                  <th className="p-4 min-w-[100px] text-right whitespace-nowrap">Details</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E6DFD5] text-[#0F3A24]">
@@ -1508,6 +2009,652 @@ export const AdminDashboard = ({ onClose }) => {
                   Close Modal
                 </button>
               </div>
+
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Push JSON Modal */}
+      <AnimatePresence>
+        {showBulkPushModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-[#E6DFD5] overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              {/* Header */}
+              <div className="px-6 py-4 bg-[#FAF7F2] border-b border-[#E6DFD5] flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#0F3A24] text-[#D4A373] flex items-center justify-center font-bold shadow-xs">
+                    <UploadCloud className="w-5 h-5 text-[#D4A373]" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-[#0F3A24]">Bulk Push Registrations (JSON)</h3>
+                    <p className="text-xs font-bold text-[#7A4F23]">Import team registrations directly into MongoDB using JSON format</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowBulkPushModal(false)}
+                  className="p-1.5 rounded-full text-slate-400 hover:text-[#0F3A24] hover:bg-white transition cursor-pointer"
+                  title="Close modal"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 space-y-5 overflow-y-auto flex-1 text-xs">
+                
+                {/* Information & Schema banner */}
+                <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-xl space-y-2 text-[#0F3A24]">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-emerald-900 text-xs flex items-center gap-1.5">
+                      <FileCode className="w-4 h-4 text-emerald-700" /> Supported JSON Schema & Fields
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleCopySampleJson}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-extrabold flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <Copy className="w-3 h-3" /> Copy Sample Template
+                    </button>
+                  </div>
+                  <p className="text-[11px] font-medium text-emerald-950">
+                    You can push structured team JSON objects or flat participant rows. Include <strong className="font-bold">paymentScreenshot</strong> as an image link/URL (Cloudinary or web URL).
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 text-[10px] font-bold">
+                    {['teamName*', 'transactionId*', 'paymentScreenshot (URL)', 'paymentStatus', 'leader.name*', 'leader.regNo*', 'leader.phone*', 'leader.section', 'leader.branch', 'leader.residenceType', 'members[]'].map((f, i) => (
+                      <span key={i} className="px-2 py-0.5 rounded bg-white border border-emerald-300 text-emerald-900 font-mono">
+                        {f}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Input Method Toggle */}
+                <div className="flex items-center justify-between bg-[#FAF7F2] p-1 rounded-xl border border-[#D9CEBE]">
+                  <button
+                    type="button"
+                    onClick={() => setBulkInputMode('paste')}
+                    className={`flex-1 py-2 text-center rounded-lg font-extrabold transition text-xs cursor-pointer ${
+                      bulkInputMode === 'paste' ? 'bg-[#0F3A24] text-white shadow-xs' : 'text-[#7A4F23] hover:text-[#0F3A24]'
+                    }`}
+                  >
+                    Paste JSON Code
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBulkInputMode('file')}
+                    className={`flex-1 py-2 text-center rounded-lg font-extrabold transition text-xs cursor-pointer ${
+                      bulkInputMode === 'file' ? 'bg-[#0F3A24] text-white shadow-xs' : 'text-[#7A4F23] hover:text-[#0F3A24]'
+                    }`}
+                  >
+                    Upload JSON File
+                  </button>
+                </div>
+
+                {/* Input Controls */}
+                {bulkInputMode === 'paste' ? (
+                  <div className="space-y-1.5">
+                    <label className="font-extrabold text-[#0F3A24] block">Paste JSON Array / Object:</label>
+                    <textarea
+                      rows={10}
+                      value={bulkJsonText}
+                      onChange={(e) => setBulkJsonText(e.target.value)}
+                      placeholder='[&#10;  {&#10;    "teamName": "CyberAgronomists",&#10;    "transactionId": "TXN123456",&#10;    "paymentScreenshot": "https://example.com/receipt.jpg",&#10;    "leader": { "name": "John", "regNo": "2300030001", "phone": "9876543210" }&#10;  }&#10;]'
+                      className="w-full p-3 rounded-xl bg-[#FAF7F2] border border-[#D9CEBE] text-xs font-mono text-[#0F3A24] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0F3A24]/20 focus:border-[#0F3A24]"
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-2 p-6 border-2 border-dashed border-[#D9CEBE] rounded-xl text-center bg-[#FAF7F2]">
+                    <FileUp className="w-8 h-8 text-[#7A4F23] mx-auto" />
+                    <p className="font-extrabold text-[#0F3A24]">Select a .json file from your device</p>
+                    <input
+                      type="file"
+                      accept=".json,application/json"
+                      onChange={(e) => setBulkJsonFile(e.target.files[0] || null)}
+                      className="block w-full text-xs text-[#0F3A24] file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-extrabold file:bg-[#0F3A24] file:text-white hover:file:bg-[#092617] cursor-pointer"
+                    />
+                    {bulkJsonFile && (
+                      <p className="text-xs font-bold text-emerald-800 mt-2">
+                        Selected File: {bulkJsonFile.name} ({(bulkJsonFile.size / 1024).toFixed(1)} KB)
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Bulk Execution Results Box */}
+                {bulkResult && (
+                  <div className="p-4 rounded-xl bg-[#FAF7F2] border border-[#E6DFD5] space-y-3">
+                    <div className="flex items-center justify-between border-b border-[#E6DFD5] pb-2">
+                      <span className="font-extrabold text-sm text-[#0F3A24]">Import Result Summary</span>
+                      <div className="flex gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 font-extrabold text-[11px] border border-emerald-300">
+                          {bulkResult.insertedCount || 0} Imported
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 font-extrabold text-[11px] border border-amber-300">
+                          {bulkResult.skippedCount || 0} Skipped
+                        </span>
+                      </div>
+                    </div>
+
+                    {Array.isArray(bulkResult.skipped) && bulkResult.skipped.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="font-extrabold text-amber-900 text-[11px]">Skipped Items Log:</p>
+                        <div className="max-h-32 overflow-y-auto space-y-1 p-2 bg-white rounded-lg border border-[#D9CEBE]">
+                          {bulkResult.skipped.map((s, idx) => (
+                            <p key={idx} className="text-[11px] font-medium text-amber-950 flex justify-between">
+                              <span className="font-bold">{s.teamName}:</span>
+                              <span className="text-slate-600">{s.reason}</span>
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 bg-[#FAF7F2] border-t border-[#E6DFD5] flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkPushModal(false)}
+                  className="px-4 py-2 rounded-xl bg-white border border-[#D9CEBE] text-[#0F3A24] font-extrabold hover:bg-[#FAF7F2] transition cursor-pointer text-xs"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleBulkPushSubmit}
+                  disabled={isBulkSubmitting}
+                  className="px-6 py-2.5 rounded-xl bg-[#0F3A24] hover:bg-[#0A2B1A] disabled:opacity-50 text-white font-extrabold shadow-sm transition cursor-pointer text-xs flex items-center gap-2"
+                >
+                  {isBulkSubmitting ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" /> Processing Bulk Push...
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud className="w-4 h-4 text-[#D4A373]" /> Push JSON to Database
+                    </>
+                  )}
+                </button>
+              </div>
+
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Team Registration Modal */}
+      <AnimatePresence>
+        {editingRegistration && editFormData && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-[#E6DFD5] overflow-hidden flex flex-col max-h-[92vh]"
+            >
+              {/* Header */}
+              <div className="px-6 py-4 bg-[#FAF7F2] border-b border-[#E6DFD5] flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#0F3A24] text-[#D4A373] flex items-center justify-center font-bold shadow-xs">
+                    <Pencil className="w-5 h-5 text-[#D4A373]" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-[#0F3A24]">
+                      {editingRegistration._id === 'NEW_TEAM' ? 'Add New Team Registration' : `Edit Team: ${editFormData.teamName || 'Registration'}`}
+                    </h3>
+                    <p className="text-xs font-bold text-[#7A4F23]">Upload screenshot, modify leader & teammates, transaction ID & status</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  className="p-1.5 rounded-full text-slate-400 hover:text-[#0F3A24] hover:bg-white transition cursor-pointer"
+                  title="Close modal"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Form Body */}
+              <form onSubmit={handleSaveRegistrationEdit} className="p-6 space-y-6 overflow-y-auto flex-1 text-xs">
+                
+                {/* Section 1: Team & Payment Status */}
+                <div className="p-4 bg-[#FAF7F2] border border-[#E6DFD5] rounded-xl space-y-4">
+                  <h4 className="font-extrabold text-[#0F3A24] uppercase text-xs tracking-wider flex items-center gap-1.5 border-b border-[#E6DFD5] pb-2">
+                    <Layers className="w-4 h-4 text-[#7A4F23]" /> Team Overview & Payment Status
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="font-extrabold text-[#0F3A24] block mb-1">Team Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={editFormData.teamName}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, teamName: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-lg bg-white border border-[#D9CEBE] text-xs font-bold text-[#0F3A24] focus:outline-none focus:ring-2 focus:ring-[#0F3A24]/20"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-extrabold text-[#0F3A24] block mb-1">Transaction ID / UTR *</label>
+                      <input
+                        type="text"
+                        required
+                        value={editFormData.transactionId}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, transactionId: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-lg bg-white border border-[#D9CEBE] text-xs font-mono font-bold text-[#0F3A24] focus:outline-none focus:ring-2 focus:ring-[#0F3A24]/20"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-extrabold text-[#0F3A24] block mb-1">Payment Status *</label>
+                      <select
+                        value={editFormData.paymentStatus}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, paymentStatus: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-lg bg-white border border-[#D9CEBE] text-xs font-bold text-[#0F3A24] focus:outline-none focus:ring-2 focus:ring-[#0F3A24]/20"
+                      >
+                        <option value="Pending">Pending</option>
+                        <option value="Verified">Verified</option>
+                        <option value="Rejected">Rejected</option>
+                        <option value="Resubmit Requested">Resubmit Requested</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {editFormData.paymentStatus === 'Rejected' && (
+                    <div>
+                      <label className="font-extrabold text-[#800E13] block mb-1">Rejection Reason</label>
+                      <input
+                        type="text"
+                        value={editFormData.rejectionReason}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, rejectionReason: e.target.value }))}
+                        placeholder="e.g. Invalid UTR number or unclear screenshot"
+                        className="w-full px-3 py-2 rounded-lg bg-white border border-[#800E13]/30 text-xs font-bold text-[#800E13] focus:outline-none"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Section 2: Payment Screenshot Upload / Link */}
+                <div className="p-4 bg-[#FAF7F2] border border-[#E6DFD5] rounded-xl space-y-4">
+                  <h4 className="font-extrabold text-[#0F3A24] uppercase text-xs tracking-wider flex items-center gap-1.5 border-b border-[#E6DFD5] pb-2">
+                    <FileImage className="w-4 h-4 text-[#7A4F23]" /> Payment Screenshot File & Link
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                    
+                    {/* File Upload option */}
+                    <div className="space-y-2">
+                      <label className="font-extrabold text-[#0F3A24] block">Upload New Screenshot Image File:</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setEditScreenshotFile(e.target.files[0] || null)}
+                        className="block w-full text-xs text-[#0F3A24] file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-extrabold file:bg-[#0F3A24] file:text-white hover:file:bg-[#092617] cursor-pointer bg-white border border-[#D9CEBE] rounded-lg p-1"
+                      />
+                      {editScreenshotFile && (
+                        <p className="text-[11px] font-bold text-emerald-800">
+                          Selected File: {editScreenshotFile.name} ({(editScreenshotFile.size / 1024).toFixed(1)} KB)
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Direct Image URL option */}
+                    <div className="space-y-2">
+                      <label className="font-extrabold text-[#0F3A24] block">OR Paste Screenshot Link / URL:</label>
+                      <input
+                        type="url"
+                        placeholder="https://res.cloudinary.com/... or https://drive.google.com/..."
+                        value={editFormData.paymentScreenshotUrl}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, paymentScreenshotUrl: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-lg bg-white border border-[#D9CEBE] text-xs font-mono font-bold text-[#0F3A24] focus:outline-none focus:ring-2 focus:ring-[#0F3A24]/20"
+                      />
+                    </div>
+
+                  </div>
+
+                  {editFormData.paymentScreenshotUrl && (
+                    <div className="pt-2 flex items-center gap-3">
+                      <span className="font-bold text-[#7A4F23]">Current Screenshot Preview:</span>
+                      <button
+                        type="button"
+                        onClick={() => setViewScreenshot(editFormData.paymentScreenshotUrl)}
+                        className="px-2.5 py-1 rounded bg-white border border-[#D9CEBE] text-[#0F3A24] text-[11px] font-extrabold flex items-center gap-1 hover:bg-slate-50 transition cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-[#7A4F23]" /> View Image Preview
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Section 3: Team Leader Details */}
+                <div className="p-4 bg-[#FAF7F2] border border-[#E6DFD5] rounded-xl space-y-4">
+                  <h4 className="font-extrabold text-[#0F3A24] uppercase text-xs tracking-wider flex items-center gap-1.5 border-b border-[#E6DFD5] pb-2">
+                    <Users className="w-4 h-4 text-[#7A4F23]" /> Team Leader Details
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="font-bold text-[#0F3A24] block mb-1">Leader Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={editFormData.leader.name}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, leader: { ...prev.leader, name: e.target.value } }))}
+                        className="w-full px-3 py-1.5 rounded-lg bg-white border border-[#D9CEBE] text-xs font-bold text-[#0F3A24]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-[#0F3A24] block mb-1">Registration Number *</label>
+                      <input
+                        type="text"
+                        required
+                        value={editFormData.leader.regNo}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, leader: { ...prev.leader, regNo: e.target.value } }))}
+                        className="w-full px-3 py-1.5 rounded-lg bg-white border border-[#D9CEBE] text-xs font-mono font-bold text-[#0F3A24]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-[#0F3A24] block mb-1">Phone Number (10 Digits) *</label>
+                      <input
+                        type="text"
+                        required
+                        value={editFormData.leader.phone}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, leader: { ...prev.leader, phone: e.target.value } }))}
+                        className="w-full px-3 py-1.5 rounded-lg bg-white border border-[#D9CEBE] text-xs font-bold text-[#0F3A24]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-[#0F3A24] block mb-1">Section</label>
+                      <input
+                        type="text"
+                        value={editFormData.leader.section}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, leader: { ...prev.leader, section: e.target.value } }))}
+                        className="w-full px-3 py-1.5 rounded-lg bg-white border border-[#D9CEBE] text-xs font-bold text-[#0F3A24]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-[#0F3A24] block mb-1">Branch</label>
+                      <input
+                        type="text"
+                        value={editFormData.leader.branch}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, leader: { ...prev.leader, branch: e.target.value } }))}
+                        className="w-full px-3 py-1.5 rounded-lg bg-white border border-[#D9CEBE] text-xs font-bold text-[#0F3A24]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-[#0F3A24] block mb-1">Residency Status *</label>
+                      <select
+                        value={editFormData.leader.residenceType}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, leader: { ...prev.leader, residenceType: e.target.value } }))}
+                        className="w-full px-3 py-1.5 rounded-lg bg-white border border-[#D9CEBE] text-xs font-bold text-[#0F3A24]"
+                      >
+                        <option value="Day Scholar">Day Scholar</option>
+                        <option value="Hosteller">Hosteller</option>
+                      </select>
+                    </div>
+
+                    {editFormData.leader.residenceType === 'Hosteller' && (
+                      <>
+                        <div>
+                          <label className="font-bold text-[#0F3A24] block mb-1">Hostel Name</label>
+                          <input
+                            type="text"
+                            value={editFormData.leader.hostelName}
+                            onChange={(e) => setEditFormData(prev => ({ ...prev, leader: { ...prev.leader, hostelName: e.target.value } }))}
+                            placeholder="e.g. MH-4"
+                            className="w-full px-3 py-1.5 rounded-lg bg-white border border-[#D9CEBE] text-xs font-bold text-[#0F3A24]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="font-bold text-[#0F3A24] block mb-1">Room Number</label>
+                          <input
+                            type="text"
+                            value={editFormData.leader.roomNumber}
+                            onChange={(e) => setEditFormData(prev => ({ ...prev, leader: { ...prev.leader, roomNumber: e.target.value } }))}
+                            placeholder="e.g. 302"
+                            className="w-full px-3 py-1.5 rounded-lg bg-white border border-[#D9CEBE] text-xs font-bold text-[#0F3A24]"
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Section 4: Team Members / Teammates */}
+                <div className="p-4 bg-[#FAF7F2] border border-[#E6DFD5] rounded-xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#E6DFD5] pb-2">
+                    <h4 className="font-extrabold text-[#0F3A24] uppercase text-xs tracking-wider flex items-center gap-1.5">
+                      <UserPlus className="w-4 h-4 text-[#7A4F23]" /> Teammates List ({editFormData.members?.length || 0})
+                    </h4>
+
+                    <button
+                      type="button"
+                      onClick={handleAddTeammateToEdit}
+                      className="px-3 py-1 rounded-lg bg-[#0F3A24] hover:bg-[#092617] text-[#D4A373] text-[11px] font-extrabold flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-[#D4A373]" /> Add Teammate
+                    </button>
+                  </div>
+
+                  {editFormData.members.length === 0 ? (
+                    <p className="text-slate-500 font-bold text-[11px] text-center py-2">
+                      No additional teammates added yet (Leader only team). Click "+ Add Teammate" to add members.
+                    </p>
+                  ) : (
+                    <div className="space-y-4">
+                      {editFormData.members.map((m, idx) => (
+                        <div key={idx} className="p-3 bg-white border border-[#D9CEBE] rounded-xl space-y-3 relative">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                            <span className="font-extrabold text-xs text-[#0F3A24]">Member #{idx + 1}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTeammateFromEdit(idx)}
+                              className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 hover:bg-rose-100 text-[11px] font-extrabold flex items-center gap-1 transition cursor-pointer border border-rose-200"
+                            >
+                              <Trash2 className="w-3 h-3" /> Remove Member
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div>
+                              <label className="font-bold text-slate-700 block mb-1">Member Name</label>
+                              <input
+                                type="text"
+                                required
+                                value={m.name}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setEditFormData(prev => {
+                                    const updated = [...prev.members];
+                                    updated[idx].name = val;
+                                    return { ...prev, members: updated };
+                                  });
+                                }}
+                                className="w-full px-2.5 py-1 rounded bg-[#FAF7F2] border border-[#D9CEBE] text-xs font-bold text-[#0F3A24]"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="font-bold text-slate-700 block mb-1">Reg No</label>
+                              <input
+                                type="text"
+                                required
+                                value={m.regNo}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setEditFormData(prev => {
+                                    const updated = [...prev.members];
+                                    updated[idx].regNo = val;
+                                    return { ...prev, members: updated };
+                                  });
+                                }}
+                                className="w-full px-2.5 py-1 rounded bg-[#FAF7F2] border border-[#D9CEBE] text-xs font-mono font-bold text-[#0F3A24]"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="font-bold text-slate-700 block mb-1">Phone</label>
+                              <input
+                                type="text"
+                                required
+                                value={m.phone}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setEditFormData(prev => {
+                                    const updated = [...prev.members];
+                                    updated[idx].phone = val;
+                                    return { ...prev, members: updated };
+                                  });
+                                }}
+                                className="w-full px-2.5 py-1 rounded bg-[#FAF7F2] border border-[#D9CEBE] text-xs font-bold text-[#0F3A24]"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="font-bold text-slate-700 block mb-1">Section</label>
+                              <input
+                                type="text"
+                                value={m.section}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setEditFormData(prev => {
+                                    const updated = [...prev.members];
+                                    updated[idx].section = val;
+                                    return { ...prev, members: updated };
+                                  });
+                                }}
+                                className="w-full px-2.5 py-1 rounded bg-[#FAF7F2] border border-[#D9CEBE] text-xs font-bold text-[#0F3A24]"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="font-bold text-slate-700 block mb-1">Branch</label>
+                              <input
+                                type="text"
+                                value={m.branch}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setEditFormData(prev => {
+                                    const updated = [...prev.members];
+                                    updated[idx].branch = val;
+                                    return { ...prev, members: updated };
+                                  });
+                                }}
+                                className="w-full px-2.5 py-1 rounded bg-[#FAF7F2] border border-[#D9CEBE] text-xs font-bold text-[#0F3A24]"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="font-bold text-slate-700 block mb-1">Residency</label>
+                              <select
+                                value={m.residenceType}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setEditFormData(prev => {
+                                    const updated = [...prev.members];
+                                    updated[idx].residenceType = val;
+                                    return { ...prev, members: updated };
+                                  });
+                                }}
+                                className="w-full px-2.5 py-1 rounded bg-[#FAF7F2] border border-[#D9CEBE] text-xs font-bold text-[#0F3A24]"
+                              >
+                                <option value="Day Scholar">Day Scholar</option>
+                                <option value="Hosteller">Hosteller</option>
+                              </select>
+                            </div>
+
+                            {m.residenceType === 'Hosteller' && (
+                              <>
+                                <div>
+                                  <label className="font-bold text-slate-700 block mb-1">Hostel Name</label>
+                                  <input
+                                    type="text"
+                                    value={m.hostelName}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setEditFormData(prev => {
+                                        const updated = [...prev.members];
+                                        updated[idx].hostelName = val;
+                                        return { ...prev, members: updated };
+                                      });
+                                    }}
+                                    className="w-full px-2.5 py-1 rounded bg-[#FAF7F2] border border-[#D9CEBE] text-xs font-bold text-[#0F3A24]"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="font-bold text-slate-700 block mb-1">Room Number</label>
+                                  <input
+                                    type="text"
+                                    value={m.roomNumber}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setEditFormData(prev => {
+                                        const updated = [...prev.members];
+                                        updated[idx].roomNumber = val;
+                                        return { ...prev, members: updated };
+                                      });
+                                    }}
+                                    className="w-full px-2.5 py-1 rounded bg-[#FAF7F2] border border-[#D9CEBE] text-xs font-bold text-[#0F3A24]"
+                                  />
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer submit inside form */}
+                <div className="pt-4 border-t border-[#E6DFD5] flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={closeEditModal}
+                    className="px-4 py-2 rounded-xl bg-white border border-[#D9CEBE] text-[#0F3A24] font-extrabold hover:bg-[#FAF7F2] transition cursor-pointer text-xs"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={isEditSubmitting}
+                    className="px-6 py-2.5 rounded-xl bg-[#0F3A24] hover:bg-[#0A2B1A] disabled:opacity-50 text-white font-extrabold shadow-sm transition cursor-pointer text-xs flex items-center gap-2"
+                  >
+                    {isEditSubmitting ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" /> Saving Changes...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 text-[#D4A373]" /> Save Team Details
+                      </>
+                    )}
+                  </button>
+                </div>
+
+              </form>
 
             </motion.div>
           </div>

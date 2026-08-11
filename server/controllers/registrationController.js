@@ -392,3 +392,339 @@ export const checkDuplicate = async (req, res, next) => {
     next(error);
   }
 };
+
+// POST /api/admin/bulk-push - Bulk push/import team registrations JSON into MongoDB
+export const bulkPushRegistrations = async (req, res, next) => {
+  try {
+    const rawData = req.body;
+    let items = [];
+
+    if (Array.isArray(rawData)) {
+      items = rawData;
+    } else if (rawData && typeof rawData === 'object') {
+      items = rawData.registrations || rawData.teams || rawData.data || [rawData];
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No valid JSON registration records provided.'
+      });
+    }
+
+    // Helper: Normalize flat participant objects OR structured team objects
+    const normalizeTeams = (rawItems) => {
+      const isStructured = rawItems.some(i => i && typeof i === 'object' && (i.leader || i.teamLeader));
+
+      if (isStructured) {
+        return rawItems.map(i => {
+          const leaderObj = i.leader || i.teamLeader || {};
+          const membersArr = Array.isArray(i.members) ? i.members : [];
+
+          const leaderRegNo = String(leaderObj.regNo || leaderObj.regno || leaderObj['Reg No'] || '').trim();
+          const leaderEmail = leaderObj.email || (leaderRegNo ? `${leaderRegNo}@klu.ac.in` : '');
+
+          return {
+            teamName: String(i.teamName || i['Team Name'] || '').trim(),
+            transactionId: String(i.transactionId || i.txnId || i['Transaction ID'] || i.utr || '').trim(),
+            paymentScreenshot: String(i.paymentScreenshot || i.paymentScreenshotLink || i.paymentScreenshotUrl || i['Payment Screenshot Link'] || '').trim() || 'https://via.placeholder.com/600x400.png?text=Bulk+Imported+Payment+Receipt',
+            paymentStatus: i.paymentStatus || i['Payment Status'] || 'Pending',
+            rejectionReason: i.rejectionReason || '',
+            leader: {
+              name: String(leaderObj.name || leaderObj['Name'] || '').trim(),
+              regNo: leaderRegNo,
+              email: leaderEmail,
+              phone: String(leaderObj.phone || leaderObj['Phone Number'] || '').trim(),
+              section: String(leaderObj.section || leaderObj['Section'] || '').trim(),
+              branch: String(leaderObj.branch || leaderObj['Branch'] || '').trim(),
+              residenceType: leaderObj.residenceType || leaderObj['Residency Status'] || 'Day Scholar',
+              hostelName: String(leaderObj.hostelName || leaderObj['Hostel Name'] || '').trim(),
+              roomNumber: String(leaderObj.roomNumber || leaderObj['Room Number'] || '').trim()
+            },
+            members: membersArr.map(m => {
+              const mRegNo = String(m.regNo || m.regno || m['Reg No'] || '').trim();
+              return {
+                name: String(m.name || m['Name'] || '').trim(),
+                regNo: mRegNo,
+                email: m.email || (mRegNo ? `${mRegNo}@klu.ac.in` : ''),
+                phone: String(m.phone || m['Phone Number'] || '').trim(),
+                section: String(m.section || m['Section'] || '').trim(),
+                branch: String(m.branch || m['Branch'] || '').trim(),
+                residenceType: m.residenceType || m['Residency Status'] || 'Day Scholar',
+                hostelName: String(m.hostelName || m['Hostel Name'] || '').trim(),
+                roomNumber: String(m.roomNumber || m['Room Number'] || '').trim()
+              };
+            })
+          };
+        });
+      }
+
+      // Group flat participant rows by teamName / transactionId
+      const teamGroups = new Map();
+      for (const row of rawItems) {
+        if (!row || typeof row !== 'object') continue;
+        const teamKey = String(row.teamName || row['Team Name'] || row.transactionId || row['Transaction ID'] || 'UNNAMED').trim();
+        if (!teamGroups.has(teamKey)) {
+          teamGroups.set(teamKey, []);
+        }
+        teamGroups.get(teamKey).push(row);
+      }
+
+      const teams = [];
+      for (const [teamKey, rows] of teamGroups.entries()) {
+        if (rows.length === 0) continue;
+        let leaderIndex = rows.findIndex(r => String(r.role || '').toLowerCase().includes('leader'));
+        if (leaderIndex === -1) leaderIndex = 0;
+
+        const leaderRow = rows[leaderIndex];
+        const memberRows = rows.filter((_, idx) => idx !== leaderIndex);
+
+        const leaderRegNo = String(leaderRow.regNo || leaderRow.regno || leaderRow['Reg No'] || '').trim();
+        const leaderObj = {
+          name: String(leaderRow.name || leaderRow['Name'] || '').trim(),
+          regNo: leaderRegNo,
+          email: leaderRow.email || (leaderRegNo ? `${leaderRegNo}@klu.ac.in` : ''),
+          phone: String(leaderRow.phone || leaderRow['Phone Number'] || '').trim(),
+          section: String(leaderRow.section || leaderRow['Section'] || '').trim(),
+          branch: String(leaderRow.branch || leaderRow['Branch'] || '').trim(),
+          residenceType: leaderRow.residenceType || leaderRow['Residency Status'] || 'Day Scholar',
+          hostelName: String(leaderRow.hostelName || leaderRow['Hostel Name'] || '').trim(),
+          roomNumber: String(leaderRow.roomNumber || leaderRow['Room Number'] || '').trim()
+        };
+
+        const membersObj = memberRows.map(m => {
+          const mRegNo = String(m.regNo || m.regno || m['Reg No'] || '').trim();
+          return {
+            name: String(m.name || m['Name'] || '').trim(),
+            regNo: mRegNo,
+            email: m.email || (mRegNo ? `${mRegNo}@klu.ac.in` : ''),
+            phone: String(m.phone || m['Phone Number'] || '').trim(),
+            section: String(m.section || m['Section'] || '').trim(),
+            branch: String(m.branch || m['Branch'] || '').trim(),
+            residenceType: m.residenceType || m['Residency Status'] || 'Day Scholar',
+            hostelName: String(m.hostelName || m['Hostel Name'] || '').trim(),
+            roomNumber: String(m.roomNumber || m['Room Number'] || '').trim()
+          };
+        });
+
+        const screenshotLink = leaderRow.paymentScreenshot || leaderRow.paymentScreenshotLink || leaderRow.paymentScreenshotUrl || leaderRow['Payment Screenshot Link'] || 'https://via.placeholder.com/600x400.png?text=Bulk+Imported+Payment+Receipt';
+
+        teams.push({
+          teamName: String(leaderRow.teamName || leaderRow['Team Name'] || teamKey).trim(),
+          transactionId: String(leaderRow.transactionId || leaderRow.txnId || leaderRow['Transaction ID'] || `BULK_${Date.now()}_${Math.floor(Math.random()*1000)}`).trim(),
+          paymentScreenshot: String(screenshotLink).trim(),
+          paymentStatus: leaderRow.paymentStatus || leaderRow['Payment Status'] || 'Pending',
+          rejectionReason: leaderRow.rejectionReason || '',
+          leader: leaderObj,
+          members: membersObj
+        });
+      }
+
+      return teams;
+    };
+
+    const candidates = normalizeTeams(items);
+    if (candidates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Could not extract valid team registrations from JSON input.'
+      });
+    }
+
+    const inserted = [];
+    const skipped = [];
+
+    // Process candidates sequentially with duplicate checks
+    for (let i = 0; i < candidates.length; i++) {
+      const team = candidates[i];
+
+      // Basic validation
+      if (!team.teamName) {
+        skipped.push({ teamName: `Item #${i+1}`, reason: 'Missing teamName' });
+        continue;
+      }
+      if (!team.transactionId) {
+        skipped.push({ teamName: team.teamName, reason: 'Missing transactionId' });
+        continue;
+      }
+      if (!team.leader || !team.leader.name || !team.leader.regNo) {
+        skipped.push({ teamName: team.teamName, reason: 'Missing Team Leader name or regNo' });
+        continue;
+      }
+
+      // Check duplicates in DB
+      const existingTeam = await Registration.findOne({ teamName: new RegExp(`^${team.teamName}$`, 'i') });
+      if (existingTeam) {
+        skipped.push({ teamName: team.teamName, reason: `Team Name "${team.teamName}" already exists` });
+        continue;
+      }
+
+      const existingTxn = await Registration.findOne({ transactionId: new RegExp(`^${team.transactionId}$`, 'i') });
+      if (existingTxn) {
+        skipped.push({ teamName: team.teamName, reason: `Transaction ID "${team.transactionId}" already exists` });
+        continue;
+      }
+
+      const teamRegNos = [team.leader.regNo, ...team.members.map(m => m.regNo)].filter(Boolean);
+      if (teamRegNos.length > 0) {
+        const existingRegNo = await Registration.findOne({
+          $or: [
+            { 'leader.regNo': { $in: teamRegNos } },
+            { 'members.regNo': { $in: teamRegNos } }
+          ]
+        });
+        if (existingRegNo) {
+          skipped.push({ teamName: team.teamName, reason: `One or more Reg Nos already registered (${teamRegNos.join(', ')})` });
+          continue;
+        }
+      }
+
+      // Allowed payment statuses: 'Pending', 'Verified', 'Rejected', 'Resubmit Requested'
+      const validStatuses = ['Pending', 'Verified', 'Rejected', 'Resubmit Requested'];
+      if (!validStatuses.includes(team.paymentStatus)) {
+        team.paymentStatus = 'Pending';
+      }
+
+      const newRegistration = new Registration({
+        teamName: team.teamName,
+        leader: team.leader,
+        members: team.members,
+        transactionId: team.transactionId,
+        paymentScreenshot: team.paymentScreenshot,
+        paymentStatus: team.paymentStatus,
+        rejectionReason: team.rejectionReason || ''
+      });
+
+      const saved = await newRegistration.save();
+      inserted.push(saved);
+    }
+
+    // Update Event capacity progress stats
+    if (inserted.length > 0) {
+      try {
+        const totalCount = await Registration.countDocuments();
+        const currentEvent = await Event.findOne();
+        if (currentEvent) {
+          const capacity = currentEvent.maxTeams || 50;
+          currentEvent.registrationProgress = Math.min(Math.round((totalCount / capacity) * 100), 100);
+          await currentEvent.save();
+        }
+      } catch (e) {}
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: `Bulk push completed! ${inserted.length} team(s) imported successfully, ${skipped.length} skipped.`,
+      insertedCount: inserted.length,
+      skippedCount: skipped.length,
+      inserted,
+      skipped
+    });
+
+  } catch (error) {
+    console.error('[Bulk Push Error]:', error);
+    next(error);
+  }
+};
+
+// PUT /api/admin/registration/:id - Updates team registration data (team, leader, members, paymentScreenshot file/link, status)
+export const updateRegistration = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ success: false, message: 'Registration ID is required' });
+    }
+
+    const registration = await Registration.findById(id);
+    if (!registration) {
+      return res.status(404).json({ success: false, message: 'Registration record not found' });
+    }
+
+    const {
+      teamName,
+      transactionId,
+      paymentStatus,
+      rejectionReason,
+      paymentScreenshotUrl
+    } = req.body;
+
+    let leader = req.body.leader;
+    let members = req.body.members || [];
+
+    if (typeof leader === 'string') {
+      try { leader = JSON.parse(leader); } catch (e) {}
+    }
+    if (typeof members === 'string') {
+      try { members = JSON.parse(members); } catch (e) { members = []; }
+    }
+
+    // Handle payment screenshot: If new file uploaded, upload to Cloudinary
+    if (req.file) {
+      console.log('[UpdateRegistration] Uploading new payment screenshot to Cloudinary...');
+      const cloudinaryResult = await uploadToCloudinary(req.file.buffer);
+      registration.paymentScreenshot = cloudinaryResult?.secure_url || cloudinaryResult?.url || registration.paymentScreenshot;
+    } else if (paymentScreenshotUrl && paymentScreenshotUrl.trim()) {
+      registration.paymentScreenshot = paymentScreenshotUrl.trim();
+    }
+
+    if (teamName && teamName.trim()) {
+      registration.teamName = teamName.trim();
+    }
+    if (transactionId && transactionId.trim()) {
+      registration.transactionId = transactionId.trim();
+    }
+    if (paymentStatus) {
+      registration.paymentStatus = paymentStatus;
+    }
+    if (rejectionReason !== undefined) {
+      registration.rejectionReason = rejectionReason;
+    }
+
+    // Update Leader
+    if (leader && typeof leader === 'object') {
+      const leaderRegNo = String(leader.regNo || registration.leader.regNo || '').trim();
+      registration.leader = {
+        name: String(leader.name || registration.leader.name || '').trim(),
+        regNo: leaderRegNo,
+        email: leader.email || (leaderRegNo ? `${leaderRegNo}@klu.ac.in` : registration.leader.email),
+        phone: String(leader.phone || registration.leader.phone || '').trim(),
+        section: String(leader.section || registration.leader.section || '').trim(),
+        branch: String(leader.branch || registration.leader.branch || '').trim(),
+        residenceType: leader.residenceType || registration.leader.residenceType || 'Day Scholar',
+        hostelName: String(leader.hostelName !== undefined ? leader.hostelName : registration.leader.hostelName).trim(),
+        roomNumber: String(leader.roomNumber !== undefined ? leader.roomNumber : registration.leader.roomNumber).trim()
+      };
+    }
+
+    // Update Members
+    if (Array.isArray(members)) {
+      registration.members = members.map(m => {
+        const mRegNo = String(m.regNo || '').trim();
+        return {
+          name: String(m.name || '').trim(),
+          regNo: mRegNo,
+          email: m.email || (mRegNo ? `${mRegNo}@klu.ac.in` : ''),
+          phone: String(m.phone || '').trim(),
+          section: String(m.section || '').trim(),
+          branch: String(m.branch || '').trim(),
+          residenceType: m.residenceType || 'Day Scholar',
+          hostelName: String(m.hostelName || '').trim(),
+          roomNumber: String(m.roomNumber || '').trim()
+        };
+      });
+    }
+
+    const updated = await registration.save();
+
+    res.json({
+      success: true,
+      message: `Team "${updated.teamName}" details updated successfully!`,
+      registration: updated
+    });
+  } catch (error) {
+    console.error('[UpdateRegistration Catch Error]:', error);
+    next(error);
+  }
+};
+
+

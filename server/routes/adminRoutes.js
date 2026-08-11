@@ -1,6 +1,6 @@
 import express from 'express';
 import { adminLogin, getDashboardStats } from '../controllers/adminController.js';
-import { getRegistrations, updatePaymentStatus, deleteRegistration, resendVerificationEmail } from '../controllers/registrationController.js';
+import { getRegistrations, updatePaymentStatus, deleteRegistration, resendVerificationEmail, bulkPushRegistrations, updateRegistration } from '../controllers/registrationController.js';
 import { updateEventDetails } from '../controllers/eventController.js';
 import { protectAdmin } from '../middleware/authMiddleware.js';
 import { upload } from '../middleware/uploadMiddleware.js';
@@ -19,6 +19,10 @@ router.get('/reservations', protectAdmin, getAdminReservations);
 router.put('/event', protectAdmin, upload.single('qrImage'), updateEventDetails);
 router.put('/payment-status', protectAdmin, updatePaymentStatus);
 router.post('/resend-email', protectAdmin, resendVerificationEmail);
+router.post('/bulk-push', protectAdmin, bulkPushRegistrations);
+router.put('/registration/:id', protectAdmin, upload.single('paymentScreenshotFile'), updateRegistration);
 router.delete('/registration/:id', protectAdmin, deleteRegistration);
 
 export default router;
+
+

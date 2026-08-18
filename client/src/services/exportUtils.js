@@ -103,73 +103,115 @@ export const exportToCSV = (registrations) => {
   document.body.removeChild(link);
 };
 
-// Constructs participant rows in the exact format of data.json
-export const buildJSONParticipantRows = (registrations) => {
-  const rows = [];
+// Export LH Girls (Female Hostellers) CSV Handler
+export const exportLHGirlsCSV = (registrations) => {
+  if (!registrations || registrations.length === 0) return;
 
-  (registrations || []).forEach(r => {
-    // Leader Row
-    if (r.leader) {
-      const leaderRegNo = (r.leader.regNo || '').trim();
-      const leaderEmail = r.leader.email || (leaderRegNo ? `${leaderRegNo}@klu.ac.in` : '');
-      const leaderYear = r.leader.year || (leaderRegNo.startsWith('9925') ? '2' : '3');
-
-      rows.push({
-        regno: leaderRegNo,
-        name: r.leader.name || '',
-        teamName: r.teamName || '',
-        role: 'Team Leader',
-        branch: r.leader.branch || '',
-        section: r.leader.section || '',
-        residenceType: r.leader.residenceType || 'Day Scholar',
-        hostelName: r.leader.residenceType === 'Hosteller' ? (r.leader.hostelName || '') : '',
-        roomNumber: r.leader.residenceType === 'Hosteller' ? (r.leader.roomNumber || '') : '',
-        year: String(leaderYear),
-        phone: r.leader.phone || '',
-        email: leaderEmail
-      });
-    }
-
-    // Additional Members Rows
-    if (Array.isArray(r.members)) {
-      r.members.forEach((m, idx) => {
-        const mRegNo = (m?.regNo || '').trim();
-        const mEmail = m?.email || (mRegNo ? `${mRegNo}@klu.ac.in` : '');
-        const mYear = m?.year || (mRegNo.startsWith('9925') ? '2' : '3');
-
-        rows.push({
-          regno: mRegNo,
-          name: m?.name || '',
-          teamName: r.teamName || '',
-          role: `Team Member ${idx + 1}`,
-          branch: m?.branch || '',
-          section: m?.section || '',
-          residenceType: m?.residenceType || 'Day Scholar',
-          hostelName: m?.residenceType === 'Hosteller' ? (m?.hostelName || '') : '',
-          roomNumber: m?.residenceType === 'Hosteller' ? (m?.roomNumber || '') : '',
-          year: String(mYear),
-          phone: m?.phone || '',
-          email: mEmail
-        });
-      });
-    }
+  const flatRows = buildFlatParticipantRows(registrations);
+  const filteredRows = flatRows.filter(r => {
+    const hostel = String(r['Hostel Name'] || '').toUpperCase();
+    return hostel.includes('LH');
   });
 
-  return rows;
+  const csv = Papa.unparse(filteredRows);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', `female_lh_girls_participants_${Date.now()}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };
 
-// JSON Export Handler (matches data.json schema)
+// Export MH Boys (Male Hostellers) CSV Handler
+export const exportMHBoysCSV = (registrations) => {
+  if (!registrations || registrations.length === 0) return;
+
+  const flatRows = buildFlatParticipantRows(registrations);
+  const filteredRows = flatRows.filter(r => {
+    const hostel = String(r['Hostel Name'] || '').toUpperCase();
+    return hostel.includes('MH') || hostel.includes('PG');
+  });
+
+  const csv = Papa.unparse(filteredRows);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', `male_mh_boys_participants_${Date.now()}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+// Export Day Scholars CSV Handler
+export const exportDayScholarsCSV = (registrations) => {
+  if (!registrations || registrations.length === 0) return;
+
+  const flatRows = buildFlatParticipantRows(registrations);
+  const filteredRows = flatRows.filter(r => {
+    const res = String(r['Residency Status'] || '');
+    return res === 'Day Scholar' || r['Hostel Name'] === 'N/A';
+  });
+
+  const csv = Papa.unparse(filteredRows);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', `dayscholar_participants_${Date.now()}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+// Constructs team rows in the exact requested format
+export const buildJSONTeamRows = (registrations) => {
+  return (registrations || []).map(r => ({
+    teamName: r.teamName || '',
+    transactionId: r.transactionId || '',
+    paymentScreenshot: r.paymentScreenshot || '',
+    paymentStatus: r.paymentStatus || 'Pending',
+    leader: {
+      name: r.leader?.name || '',
+      regNo: (r.leader?.regNo || '').trim(),
+      phone: r.leader?.phone || '',
+      section: r.leader?.section || '',
+      branch: r.leader?.branch || '',
+      residenceType: r.leader?.residenceType || 'Day Scholar',
+      hostelName: r.leader?.residenceType === 'Hosteller' ? (r.leader?.hostelName || '') : '',
+      roomNumber: r.leader?.residenceType === 'Hosteller' ? (r.leader?.roomNumber || '') : ''
+    },
+    members: Array.isArray(r.members)
+      ? r.members.map(m => ({
+          name: m?.name || '',
+          regNo: (m?.regNo || '').trim(),
+          phone: m?.phone || '',
+          section: m?.section || '',
+          branch: m?.branch || '',
+          residenceType: m?.residenceType || 'Day Scholar',
+          hostelName: m?.residenceType === 'Hosteller' ? (m?.hostelName || '') : '',
+          roomNumber: m?.residenceType === 'Hosteller' ? (m?.roomNumber || '') : ''
+        }))
+      : []
+  }));
+};
+
+export const buildJSONParticipantRows = buildJSONTeamRows;
+
+// JSON Export Handler (matches requested team registration schema)
 export const exportToJSON = (registrations) => {
   if (!registrations || registrations.length === 0) return;
 
-  const jsonRows = buildJSONParticipantRows(registrations);
+  const jsonRows = buildJSONTeamRows(registrations);
   const jsonString = JSON.stringify(jsonRows, null, 2);
 
   const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.setAttribute('download', `Farm_Fusion_AI_Participants_${Date.now()}.json`);
+  link.setAttribute('download', `Farm_Fusion_Teams_${Date.now()}.json`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

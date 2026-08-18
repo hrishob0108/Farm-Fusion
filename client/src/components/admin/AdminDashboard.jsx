@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { useEvent } from '../../context/EventContext';
-import { exportToCSV, exportToJSON, exportToPDF } from '../../services/exportUtils';
+import { exportToCSV, exportToJSON, exportToPDF, exportLHGirlsCSV, exportMHBoysCSV, exportDayScholarsCSV } from '../../services/exportUtils';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import {
@@ -846,8 +846,33 @@ export const AdminDashboard = ({ onClose }) => {
               <button
                 onClick={() => exportToCSV(filteredRegistrations)}
                 className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-[#FAF7F2] text-[#0F3A24] border border-[#D9CEBE] hover:bg-[#EFE9DF] text-xs font-bold transition cursor-pointer"
+                title="Export all registrations to CSV"
               >
-                <FileSpreadsheet className="w-4 h-4 text-[#0F3A24]" /> CSV
+                <FileSpreadsheet className="w-4 h-4 text-[#0F3A24]" /> All CSV
+              </button>
+
+              <button
+                onClick={() => exportLHGirlsCSV(filteredRegistrations)}
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-pink-50 text-pink-900 border border-pink-200 hover:bg-pink-100 text-xs font-bold transition cursor-pointer"
+                title="Export Girls (LH Hostellers) to CSV"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-pink-700" /> Girls (LH) CSV
+              </button>
+
+              <button
+                onClick={() => exportMHBoysCSV(filteredRegistrations)}
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-blue-50 text-blue-900 border border-blue-200 hover:bg-blue-100 text-xs font-bold transition cursor-pointer"
+                title="Export Boys (MH Hostellers) to CSV"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-blue-700" /> Boys (MH) CSV
+              </button>
+
+              <button
+                onClick={() => exportDayScholarsCSV(filteredRegistrations)}
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 text-xs font-bold transition cursor-pointer"
+                title="Export Day Scholars to CSV"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-amber-700" /> Day Scholars CSV
               </button>
 
               <button
